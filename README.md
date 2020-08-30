@@ -1,6 +1,6 @@
 # chika
 
-`chika` is a dataclass-based simple and easy config tool
+`chika` is a simple and easy config tool for hierarchical configurations.
 
 ## Requirements
 
@@ -8,30 +8,42 @@
 
 ## Usage
 
-Write typed configurations using `chika.config`.
+Write typed configurations using `chika.config`, which is similar to `dataclass`.
 
 ```python
 # main.py
 import chika
 
 @chika.config
+class ModelConfig:
+    name: str = chika.choices('resnet', 'densenet')
+
+@chika.config
+class DataConfig:
+    # values that needs to be specified
+    name: str = chika.required()
+
+@chika.config
+class OptimConfig:
+    # 
+    steps: List[int] = chika.sequence(100, 150)
+
+@chika.config
 class Config:
     model: ModelConfig
     data: DataConfig
+    optim: OptimConfig
 
-    seed: int = 1
+    seed: int = chika.with_help(1, "random seed")
     use_amp: bool = False
+    num_gpu: int = 1
 
-@chika.main(config_file="config.yaml")
+
+@chika.main(config=Config)
 def main(cfg: Config):
     model = ModelRegistry(cfg.model)
     ...
 
-# or
-
-def main2():
-    cfg = Config(model=ModelConfig(), 
-                 ...)
 ```
 
 ```yaml
@@ -41,15 +53,20 @@ model:
   ... 
 ```
 
+### Expected Behavior
+
 ```commandline
 python main.py --use_amp
 # cfg.use_amp == True
 
-python main.py model=config/densenet.yaml
-# cfg.model == densenet
+python main.py --model config/densenet.yaml
+# cfg.model.name == densenet
 
 python main.py --model.name resnet
 # cfg.model.name == resnet
+
+python main.py --optim.decay_steps 100 150
+# config.optim.decay_steps == [100, 150]
 ```
 
 ### Other APIs
@@ -64,9 +81,8 @@ python main.py --model.name resnet
 >>> cfg.to_dict()
 # {"model": {"name": "resnet", "zero_init": True, ...}, ...}
 
->>> cfg.load_file("config.yaml")
->>> cfg.load_file("config.json")
->>> cfg.load_args()
+>>> cfg.from_file("config.yaml")
+>>> cfg.from_file("config.json")
 
 >>> chika.unique_path
 # Path("outputs/202008200001-609938")
