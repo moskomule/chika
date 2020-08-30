@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from collections import defaultdict
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, List, NewType, Optional, Tuple, Type
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 __all__ = ["ChikaArgumentParser",
            # space functions
@@ -18,7 +18,7 @@ __all__ = ["ChikaArgumentParser",
            "main"]
 
 # types
-DataClass = NewType("DataClass", Any)
+import typing
 
 
 # argument parser
@@ -32,7 +32,7 @@ class ChikaArgumentParser(ArgumentParser):
     """
 
     def __init__(self,
-                 dataclass_type: Type[DataClass],
+                 dataclass_type: Type[ChikaConfig],
                  **kwargs
                  ) -> None:
         super().__init__(**kwargs)
@@ -40,46 +40,53 @@ class ChikaArgumentParser(ArgumentParser):
         self.add_dataclass_arguments(self.dataclass_type)
 
     def add_dataclass_arguments(self,
-                                dtype: DataClass,
+                                dtype: Type[ChikaConfig],
                                 prefix: Optional[str] = None
                                 ) -> None:
+        name_to_type = typing.get_type_hints(dtype)
         for field in dataclasses.fields(dtype):
-            # if dtype is base, --config
-            # if dtype is subconfig, --main.subconfig
+            # __annotation__ changes type hint to str, so field.type might be str
+            # field_type is actual type hint
+            field_type = name_to_type[field.name]
+            # if dtype is parent, --config
+            # if dtype is child, --main.subconfig
             field_name = f"--{field.name}" if prefix is None else f"--{prefix}.{field.name}"
             kwargs: Dict[str, Any] = field.metadata.copy()
 
-            # Optional is difficult to handle...
+            # remove Optional. Optional is Union[..., NoneType]
+            # typing.get_args, typing.get_origin may make it easy
             type_string = str(field.type)
             for prim_type in (int, float, str):
                 # Optional[List[int]] -> List[int]
                 if type_string == f"typing.Union[List[{prim_type}], NoneType]":
-                    field.type = List[prim_type]
+                    field_type = List[prim_type]
                 # Optional[int] -> int
                 if type_string == f"typing.Union[{prim_type.__name__}, NoneType]":
-                    field.type = prim_type
+                    field_type = prim_type
 
-            if isinstance(field.type, type) and issubclass(field.type, Enum):
+            if isinstance(field_type, type) and issubclass(field_type, Enum):
                 kwargs["choices"] = list(field.type)
-                kwargs["type"] = field.type
+                kwargs["type"] = field_type
                 if kwargs.get("required") is None:
                     kwargs["default"] = field.default
 
-            elif field.type is bool or field.type is Optional[bool]:
+            elif field_type is bool or field_type is Optional[bool]:
                 kwargs["action"] = "store_false" if field.default is True else "store_true"
 
-            elif _is_type_list_or_tuple(field.type):
+            elif self._is_type_list_or_tuple(field_type):
                 if kwargs.get("nargs") is None:
                     kwargs["nargs"] = "+"
                 kwargs["type"] = field.type.__args__[0]
 
             # for ChikaConfig
-            elif dataclasses.is_dataclass(field.type):
-                self.add_dataclass_arguments(field.type, prefix=field.name)
+            elif dataclasses.is_dataclass(field_type):
+                kwargs["help"] = f"--{field.name} config.yaml to load a config for {field.name}"
+                self.add_argument(field_name, **kwargs)
+                self.add_dataclass_arguments(field_type, prefix=field.name)
                 continue
 
             else:
-                kwargs["type"] = field.type
+                kwargs["type"] = field_type
                 # value is not missing
                 if field.default is not dataclasses.MISSING:
                     kwargs["default"] = field.default
@@ -88,18 +95,28 @@ class ChikaArgumentParser(ArgumentParser):
 
     def parse_args_into_dataclass(self,
                                   args: Optional[List[str]] = None,
-                                  ) -> [DataClass, Any]:
+                                  ) -> [ChikaConfig, Any]:
         namespace, remaining_args = self.parse_known_args(args=args)
 
-        def unflatten(flatten_map: Dict[str, Any]) -> Dict[str, Any]:
-            unflatten_dict = defaultdict(dict)
-            for k, v in flatten_map.items():
+        def unflatten(flatten_dict: Dict[str, Any],
+                      unflatten_dict: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+            if unflatten_dict is None:
+                unflatten_dict = defaultdict(dict)
+
+            for k, v in flatten_dict.items():
                 # dataclass
                 # what if nested?
                 if "." in k:
                     cls_name, cls_field = k.split(".", 1)
                     if "." in cls_field:
                         raise RuntimeError("Double nested config is not supported yet")
+
+                    if unflatten_dict[cls_name] is None:
+                        # if nested, parent is expected to be file or None
+                        unflatten_dict[cls_name] = {}
+                    else:
+                        raise NotImplementedError
+
                     unflatten_dict[cls_name][cls_field] = v
                 else:
                     unflatten_dict[k] = v
@@ -116,10 +133,10 @@ class ChikaArgumentParser(ArgumentParser):
         dclass = self.dataclass_type(**unflattened)
         return dclass, remaining_args
 
-
-# typing helpers
-def _is_type_list_or_tuple(type: Type):
-    return hasattr(type, "__origin__") and issubclass(type.__origin__, (List, Tuple))
+    @staticmethod
+    def _is_type_list_or_tuple(type: Type):
+        origin = typing.get_origin(type)
+        return origin is not None and issubclass(origin, (List, Tuple))
 
 
 # configs
@@ -212,6 +229,10 @@ class ChikaConfig:
                   state_dict: Dict[str, Any]
                   ) -> ChikaConfig:
         return cls(**state_dict)
+
+    def __repr__(self):
+        # todo: better looking
+        return super().__repr__()
 
 
 # config decorator
