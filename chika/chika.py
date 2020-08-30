@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import dataclasses
+import types
 from argparse import ArgumentParser
 from collections import defaultdict
 from enum import Enum
-from pathlib import Path
+from functools import wraps
 from typing import Any, Callable, Dict, List, NewType, Optional, Tuple, Type
 
 __all__ = ["ChikaArgumentParser",
@@ -22,7 +23,12 @@ DataClass = NewType("DataClass", Any)
 
 # argument parser
 class ChikaArgumentParser(ArgumentParser):
-    """ This subclass of argparser generates argiuments from dataclasses inspired from huggingface transformers.hf_argparser.
+    """ This subclass of argparser that generates arguments from dataclasses.
+     Inspired from huggingface transformers.hf_argparser.
+
+     Args:
+         dataclass_type: The top-level config class
+         kwargs: kwargs for ArgumentParser
     """
 
     def __init__(self,
@@ -82,10 +88,7 @@ class ChikaArgumentParser(ArgumentParser):
 
     def parse_args_into_dataclass(self,
                                   args: Optional[List[str]] = None,
-                                  return_remaining_strings=False,
-                                  look_for_args_file=True,
-                                  args_filename=None
-                                  ) -> DataClass:
+                                  ) -> [DataClass, Any]:
         namespace, remaining_args = self.parse_known_args(args=args)
 
         def unflatten(flatten_map: Dict[str, Any]) -> Dict[str, Any]:
@@ -111,13 +114,7 @@ class ChikaArgumentParser(ArgumentParser):
                 unflattened[field.name] = field.type(**args)
 
         dclass = self.dataclass_type(**unflattened)
-        if return_remaining_strings:
-            return dclass, remaining_args
-
-        else:
-            if len(remaining_args) > 0:
-                raise ValueError(f"Some specified arguments are not used by _ChikaArgumentParser: {remaining_args}")
-            return dclass
+        return dclass, remaining_args
 
 
 # typing helpers
@@ -130,13 +127,13 @@ def _is_type_list_or_tuple(type: Type):
 def with_help(default: Any,
               help: Optional[str] = None
               ) -> dataclasses.Field:
-    """ Add help to ChikaConfig, which is used in ArgumentParser
+    """ Add help to ChikaConfig, which is used in ArgumentParser.
 
     Args:
         default: default value
         help: help message
 
-    Returns: default value with help message
+    Returns: default value with a help message
 
     """
 
@@ -149,13 +146,13 @@ def with_help(default: Any,
 def choices(*values: Any,
             help: Optional[str] = None
             ) -> dataclasses.Field:
-    """ Add choices to ChikaConfig, which is used in ArgumentParser. The first value is used as the default value
+    """ Add choices to ChikaConfig, which is used in ArgumentParser. The first value is used as the default value.
 
     Args:
-        *values:
-        help:
+        *values: candidate values to be chosen
+        help: help message
 
-    Returns:
+    Returns: default value with candidates and a help message
 
     """
     values = list(values)
@@ -169,6 +166,16 @@ def sequence(*values: Any,
              size: Optional[int] = None,
              help: Optional[str] = None
              ) -> dataclasses.Field:
+    """ Add a default value of list, which is invalid in dataclass.
+
+    Args:
+        *values:
+        size: size of sequence. If specified, the length is fixed, and if violated, ValueError will be raised.
+        help: help message
+
+    Returns: sequence with a help message
+
+    """
     meta = {'default': list(values)}
     if size is not None:
         meta['nargs'] = size
@@ -178,7 +185,72 @@ def sequence(*values: Any,
 
 
 def required(*, help: Optional[str] = None) -> dataclasses.Field:
+    """ Add a missing value with a help message. This value must be specified later. ::
+
+    Args:
+        help: help message
+
+    Returns: help message.
+
+    """
+
     meta = {'required': True}
     if help is not None:
         meta['help'] = help
     return dataclasses.field(metadata=meta)
+
+
+@dataclasses.dataclass
+class ChikaConfig:
+    # mixin
+
+    def to_dict(self):
+        return dataclasses.asdict(self)
+
+    @classmethod
+    def from_dict(cls,
+                  state_dict: Dict[str, Any]
+                  ) -> ChikaConfig:
+        return cls(**state_dict)
+
+
+# config decorator
+def config(cls=None
+           ) -> ChikaConfig:
+    """ A wrapper to make ChikaConfig ::
+
+    @config
+    class DataConfig:
+        name: cifar10
+
+    Args:
+        cls: wrapped class. Class name is expected to be FooConfig, and foo is used as key if this class is used as a child
+
+    Returns: config in dataclass and ChikaConfig
+
+    """
+
+    def wrap(cls):
+        # create cls whose baseclass is ChikaConfig
+        cls = types.new_class(cls.__name__, (ChikaConfig,), {}, lambda ns: ns.update(cls.__dict__))
+        # make cls to dataclass
+        return dataclasses.dataclass(cls)
+
+    return wrap if cls is None else wrap(cls)
+
+
+# entry point
+def main(cfg_cls: Type[ChikaConfig],
+         strict: bool = False
+         ) -> Callable:
+    def _decorator(func: Callable):
+        @wraps(func)
+        def _wrapper():
+            _config, remaining_args = ChikaArgumentParser(cfg_cls).parse_args_into_dataclass()
+            if strict and len(remaining_args) > 0:
+                raise ValueError(f"Some specified arguments are not used by ChikaArgumentParser: {remaining_args}")
+            return func(_config)
+
+        return _wrapper
+
+    return _decorator
