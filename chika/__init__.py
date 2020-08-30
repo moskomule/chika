@@ -1,1 +1,1 @@
-from .chika import config, main
+from .chika import *

@@ -15,7 +15,7 @@ def test_simple_case():
         d: bool = True
         e: str = "test"
 
-    r = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "1"])
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "1"])
     assert isinstance(r, A)
     assert r.a == 1
     assert r.b == 2
@@ -23,11 +23,11 @@ def test_simple_case():
     assert r.d
     assert r.e == "test"
 
-    r = ChikaArgumentParser(A).parse_args_into_dataclass(["--c", "--d"])
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--c", "--d"])
     assert r.c
     assert not r.d
 
-    r = ChikaArgumentParser(A).parse_args_into_dataclass(["--e", "train"])
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--e", "train"])
     assert r.e == "train"
 
     with pytest.raises(SystemExit):
@@ -45,7 +45,7 @@ def test_nested_case():
         a: float
         b: A = A(1)
 
-    r = ChikaArgumentParser(B).parse_args_into_dataclass(["--a", "3.2", "--b.a", "2"])
+    r, _ = ChikaArgumentParser(B).parse_args_into_dataclass(["--a", "3.2", "--b.a", "2"])
     assert r.a == 3.2
     assert r.b.a == 2
 
@@ -63,10 +63,10 @@ def test_choices():
     class A:
         a: int = choices(1, 2, 3)
 
-    r = ChikaArgumentParser(A).parse_args_into_dataclass([])
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
     assert r.a == 1
 
-    r = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "2"])
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "2"])
     assert r.a == 2
 
     with pytest.raises(SystemExit):
@@ -78,10 +78,10 @@ def test_sequence():
     class A:
         a: List[int] = sequence(1, 2, 3, size=3)
 
-    r = ChikaArgumentParser(A).parse_args_into_dataclass([])
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
     assert r.a == [1, 2, 3]
 
-    r = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "1", "2", "4"])
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "1", "2", "4"])
     assert r.a == [1, 2, 4]
 
     with pytest.raises(SystemExit):
@@ -93,7 +93,7 @@ def test_required():
     class A:
         a: int = required()
 
-    r = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "1"])
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "1"])
     assert r.a == 1
 
     with pytest.raises(SystemExit):
@@ -106,5 +106,5 @@ def test_with_help():
     class A:
         a: int = with_help(1, "this is help")
 
-    r = ChikaArgumentParser(A).parse_args_into_dataclass([])
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
     assert r.a == 1

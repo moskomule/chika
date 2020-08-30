@@ -39,7 +39,7 @@ class Config:
     num_gpu: int = 1
 
 
-@chika.main(config=Config)
+@chika.main(Config)
 def main(cfg: Config):
     model = ModelRegistry(cfg.model)
     ...
@@ -65,14 +65,14 @@ python main.py --model config/densenet.yaml
 python main.py --model.name resnet
 # cfg.model.name == resnet
 
-python main.py --optim.decay_steps 100 150
-# config.optim.decay_steps == [100, 150]
+python main.py --optim.decay_steps 120 150
+# config.optim.decay_steps == [120, 150]
 ```
 
 ### Other APIs
 
 ```python
->>> cfg.show()
+>>> print(cfg)
 # model: name=resnet
 #        zero_init=True
 #        ...
@@ -80,10 +80,4 @@ python main.py --optim.decay_steps 100 150
 
 >>> cfg.to_dict()
 # {"model": {"name": "resnet", "zero_init": True, ...}, ...}
-
->>> cfg.from_file("config.yaml")
->>> cfg.from_file("config.json")
-
->>> chika.unique_path
-# Path("outputs/202008200001-609938")
 ```
