@@ -47,9 +47,9 @@ def main(cfg: Config):
 ```
 
 ```yaml
-# config.yaml
+# config/densenet.yaml
 model:
-  name: resnet
+  name: densenet
   ... 
 ```
 
@@ -72,12 +72,15 @@ python main.py --optim.decay_steps 120 150
 ### Other APIs
 
 ```python
->>> print(cfg)
+from chika import ChikaConfig
+cfg = ChikaConfig.from_dict(...)
+
+print(cfg)
 # model: name=resnet
 #        zero_init=True
 #        ...
 # ...
 
->>> cfg.to_dict()
+cfg.to_dict()
 # {"model": {"name": "resnet", "zero_init": True, ...}, ...}
 ```
