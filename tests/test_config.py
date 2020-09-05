@@ -25,3 +25,4 @@ def test_nested_config():
 
     b = B(C(1))
     assert b.to_dict() == {"a": {"c": 1}}
+    assert B.from_dict({"a": {"c": 1}}) == b

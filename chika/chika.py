@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import argparse
 import dataclasses
+import json
 import types
-from argparse import ArgumentParser
+import typing
 from collections import defaultdict
 from enum import Enum
 from functools import wraps
+from numbers import Number
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+
+import yaml
 
 __all__ = ["ChikaArgumentParser",
            # space functions
@@ -17,12 +23,61 @@ __all__ = ["ChikaArgumentParser",
            "config",
            "main"]
 
-# types
-import typing
+# fileio
+JSON_SUFFIXES = {".json"}
+YAML_SUFFIXES = {".yaml", ".yml"}
+
+
+def is_supported_filetype(file: str
+                          ) -> bool:
+    return Path(file).suffix in (JSON_SUFFIXES | YAML_SUFFIXES)
+
+
+def load_from_file(file: str
+                   ) -> Dict[str, Any]:
+    file = Path(file)
+    if not file.exists():
+        raise FileNotFoundError(f"{file} not found")
+    if not is_supported_filetype(file):
+        raise RuntimeError(f"Unsupported file type with a suffix of {file.suffix}")
+
+    with file.open() as f:
+        if file.suffix in JSON_SUFFIXES:
+            return json.load(f)
+        elif file.suffix in YAML_SUFFIXES:
+            return yaml.safe_load(f)
+
+
+def save_as_file(file: str,
+                 state_dict: Dict[str, Any]
+                 ) -> None:
+    file = Path(file)
+    if not is_supported_filetype(file):
+        raise RuntimeError(f"Unsupported file type with a suffix of {file.suffix}")
+    file.parent.mkdir(exist_ok=True, parents=True)
+    with file.open("w") as f:
+        if file.suffix in JSON_SUFFIXES:
+            json.dump(state_dict, f)
+        elif file.suffix in YAML_SUFFIXES:
+            yaml.safe_dump(state_dict, f)
+
+
+# mark default values
+class _DefaultUntouched(object):
+    # mark as untouched default
+    def __init__(self,
+                 value: Any):
+        self.value = value
+
+    def __cal__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value.__repr__()
 
 
 # argument parser
-class ChikaArgumentParser(ArgumentParser):
+class ChikaArgumentParser(argparse.ArgumentParser):
     """ This subclass of argparser that generates arguments from dataclasses.
      Inspired from huggingface transformers.hf_argparser.
 
@@ -35,16 +90,29 @@ class ChikaArgumentParser(ArgumentParser):
                  dataclass_type: Type[ChikaConfig],
                  **kwargs
                  ) -> None:
+        if kwargs.get("formatter_class") is None:
+            # help will show default values
+            kwargs["formatter_class"] = argparse.ArgumentDefaultsHelpFormatter
+        if kwargs.get("allow_abbrev") is None:
+            kwargs["allow_abbrev"] = False
         super().__init__(**kwargs)
         self.dataclass_type = dataclass_type
         self.add_dataclass_arguments(self.dataclass_type)
 
     def add_dataclass_arguments(self,
-                                dtype: Type[ChikaConfig],
-                                prefix: Optional[str] = None
+                                dtype: Type[ChikaConfig] or ChikaConfig,
+                                prefix: Optional[str] = None,
+                                nest_level: int = 0
                                 ) -> None:
         name_to_type = typing.get_type_hints(dtype)
         for field in dataclasses.fields(dtype):
+            # field is dataclass field and has following properties
+            # name:
+            # type:
+            # default: default value (right hans side)
+            # metadata: dict. this is used by chika's functions
+            # default_factory, init, repr, compare, hash
+
             # __annotation__ changes type hint to str, so field.type might be str
             # field_type is actual type hint
             field_type = name_to_type[field.name]
@@ -52,6 +120,9 @@ class ChikaArgumentParser(ArgumentParser):
             # if dtype is child, --main.subconfig
             field_name = f"--{field.name}" if prefix is None else f"--{prefix}.{field.name}"
             kwargs: Dict[str, Any] = field.metadata.copy()
+            if kwargs.get("help") is None:
+                # to show default values
+                kwargs["help"] = " "
 
             # remove Optional. Optional is Union[..., NoneType]
             # typing.get_args, typing.get_origin may make it easy
@@ -70,25 +141,44 @@ class ChikaArgumentParser(ArgumentParser):
                 if kwargs.get("required") is None:
                     kwargs["default"] = field.default
 
+            # foo: bool = True -> --foo makes foo False
             elif field_type is bool or field_type is Optional[bool]:
                 kwargs["action"] = "store_false" if field.default is True else "store_true"
 
             elif self._is_type_list_or_tuple(field_type):
                 if kwargs.get("nargs") is None:
                     kwargs["nargs"] = "+"
-                kwargs["type"] = field.type.__args__[0]
+                kwargs["type"] = field_type
 
             # for ChikaConfig
             elif dataclasses.is_dataclass(field_type):
-                kwargs["help"] = f"--{field.name} config.yaml to load a config for {field.name}"
+                if nest_level > 0:
+                    raise NotImplementedError("The depth of config is expected to be at most 2")
+
+                kwargs["help"] = f"load {{yaml,yml,json}} file for {field.name} if necessary"
+                # argparse.SUPPRESS causes no attribute to be added if the command-line argument was not present
+                if field.default is dataclasses.MISSING:
+                    kwargs["default"] = argparse.SUPPRESS
+                else:
+                    kwargs["default"] = field.default
                 self.add_argument(field_name, **kwargs)
-                self.add_dataclass_arguments(field_type, prefix=field.name)
+
+                if field.default is dataclasses.MISSING:
+                    self.add_dataclass_arguments(field_type, prefix=field.name, nest_level=nest_level + 1)
+                else:
+                    raise NotImplementedError("dataclass as default value is not supported")
                 continue
 
+            # for int, float, str
             else:
                 kwargs["type"] = field_type
                 # value is not missing
-                if field.default is not dataclasses.MISSING:
+                # if nest_level > 0:
+                #     kwargs["default"] = argparse.SUPPRESS
+                if field.default is dataclasses.MISSING and kwargs.get("default") is None:
+                    kwargs["required"] = True
+                    kwargs["help"] += " (required)"
+                elif field.default is not dataclasses.MISSING:
                     kwargs["default"] = field.default
 
             self.add_argument(field_name, **kwargs)
@@ -96,41 +186,26 @@ class ChikaArgumentParser(ArgumentParser):
     def parse_args_into_dataclass(self,
                                   args: Optional[List[str]] = None,
                                   ) -> [ChikaConfig, Any]:
+        print(self.print_help())
         namespace, remaining_args = self.parse_known_args(args=args)
-
-        def unflatten(flatten_dict: Dict[str, Any],
-                      unflatten_dict: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-            if unflatten_dict is None:
-                unflatten_dict = defaultdict(dict)
-
-            for k, v in flatten_dict.items():
-                # dataclass
-                # what if nested?
-                if "." in k:
-                    cls_name, cls_field = k.split(".", 1)
-                    if "." in cls_field:
-                        raise RuntimeError("Double nested config is not supported yet")
-
-                    if unflatten_dict[cls_name] is None:
-                        # if nested, parent is expected to be file or None
-                        unflatten_dict[cls_name] = {}
-                    else:
-                        raise NotImplementedError
-
-                    unflatten_dict[cls_name][cls_field] = v
+        name_to_type = typing.get_type_hints(self.dataclass_type)
+        unflatten_dict = defaultdict(dict)
+        for k, v in vars(namespace).items():
+            print(k, v)
+            # ChikaConfig
+            if dataclasses.is_dataclass(name_to_type.get(k)):
+                if isinstance(v, str) and is_supported_filetype(v):
+                    unflatten_dict[k] = load_from_file(v)
                 else:
-                    unflatten_dict[k] = v
+                    raise TypeError(f"{k}={v}")
+            elif "." in k:
+                # ChikaConfig's child
+                cls_name, cls_field = k.split(".", 1)
+                unflatten_dict[cls_name][cls_field] = v
+            else:
+                unflatten_dict[k] = v
 
-            return unflatten_dict
-
-        unflattened = unflatten(vars(namespace))
-
-        for field in dataclasses.fields(self.dataclass_type):
-            if dataclasses.is_dataclass(field.type):
-                args = unflattened[field.name]
-                unflattened[field.name] = field.type(**args)
-
-        dclass = self.dataclass_type(**unflattened)
+        dclass = self.dataclass_type.from_dict(unflatten_dict)
         return dclass, remaining_args
 
     @staticmethod
@@ -201,7 +276,8 @@ def sequence(*values: Any,
     return dataclasses.field(metadata=meta)
 
 
-def required(*, help: Optional[str] = None) -> dataclasses.Field:
+def required(*, help: Optional[str] = None
+             ) -> dataclasses.Field:
     """ Add a missing value with a help message. This value must be specified later. ::
 
     Args:
@@ -217,6 +293,16 @@ def required(*, help: Optional[str] = None) -> dataclasses.Field:
     return dataclasses.field(metadata=meta)
 
 
+def bounded(default: Any,
+            _from: Number,
+            _to: Number,
+            *,
+            help: Optional[str] = None
+            ) -> dataclasses.Field:
+    # use metaclass[type]
+    pass
+
+
 @dataclasses.dataclass
 class ChikaConfig:
     # mixin
@@ -228,7 +314,16 @@ class ChikaConfig:
     def from_dict(cls,
                   state_dict: Dict[str, Any]
                   ) -> ChikaConfig:
-        return cls(**state_dict)
+        _state_dict = {}
+        field_type = typing.get_type_hints(cls)
+        for field in dataclasses.fields(cls):
+            name = field.name
+            if dataclasses.is_dataclass(field_type[name]):
+                # ChikaConfig
+                _state_dict[name] = field_type[name].from_dict(state_dict[name])
+            else:
+                _state_dict[name] = state_dict[name]
+        return cls(**_state_dict)
 
     def __repr__(self):
         # todo: better looking

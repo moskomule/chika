@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import List
 
 import pytest
-
 from chika.chika import ChikaArgumentParser, choices, required, sequence, with_help
 
 
