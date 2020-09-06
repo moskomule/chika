@@ -272,7 +272,7 @@ def choices(*values: Any,
     meta = {'choices': values, 'default': values[0]}
     if help is not None:
         meta['help'] = help
-    return dataclasses.field(metadata=meta)
+    return dataclasses.field(default=values[0], metadata=meta)
 
 
 def sequence(*values: Any,
