@@ -4,7 +4,7 @@
 
 ## Requirements
 
-* Python>=3.8
+* Python>=3.7
 
 ## Usage
 
@@ -17,6 +17,7 @@ import chika
 @chika.config
 class ModelConfig:
     name: str = chika.choices('resnet', 'densenet')
+    depth: int = 10
 
 @chika.config
 class DataConfig:
@@ -34,9 +35,9 @@ class Config:
     data: DataConfig
     optim: OptimConfig
 
-    seed: int = chika.with_help(1, "random seed")
+    seed: int = chika.with_help(1, help="random seed")
     use_amp: bool = False
-    num_gpu: int = 1
+    gpu: int = chika.choices(range(torch.cuda.device_count()), help="id of gpu")
 
 
 @chika.main(Config)
@@ -50,7 +51,7 @@ def main(cfg: Config):
 # config/densenet.yaml
 model:
   name: densenet
-  ... 
+  depth: 12 
 ```
 
 ### Expected Behavior
@@ -61,9 +62,11 @@ python main.py --use_amp
 
 python main.py --model config/densenet.yaml
 # cfg.model.name == densenet
+# cfg.model.depth == 12
 
-python main.py --model.name resnet
-# cfg.model.name == resnet
+python main.py --model config/densenet.yaml --model.depth 24
+# cfg.model.name == densenet
+# cfg.model.depth == 24
 
 python main.py --optim.decay_steps 120 150
 # config.optim.decay_steps == [120, 150]
@@ -75,12 +78,10 @@ python main.py --optim.decay_steps 120 150
 from chika import ChikaConfig
 cfg = ChikaConfig.from_dict(...)
 
-print(cfg)
-# model: name=resnet
-#        zero_init=True
-#        ...
-# ...
-
 cfg.to_dict()
 # {"model": {"name": "resnet", "zero_init": True, ...}, ...}
 ```
+
+### Known issues
+
+-[ ] config cannot be nested twice. `Config(Config(...))` is valid, but `Config(Config(Config(...)))` is invalid.
