@@ -22,7 +22,8 @@ def test_nested_config():
     @config
     class B:
         a: C
+        b: int
 
-    b = B(C(1))
-    assert b.to_dict() == {"a": {"c": 1}}
-    assert B.from_dict({"a": {"c": 1}}) == b
+    b = B(C(1), 3)
+    assert b.to_dict() == {"a": {"c": 1}, "b": 3}
+    assert B.from_dict({"a": {"c": 1}, "b": 3}) == b

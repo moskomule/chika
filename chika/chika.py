@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import math
 import types
 import typing
 from collections import defaultdict
@@ -16,7 +17,7 @@ import yaml
 
 __all__ = ["ChikaArgumentParser",
            # space functions
-           "with_help", "choices", "sequence", "required",
+           "with_help", "choices", "sequence", "required", "bounded",
            # config
            "ChikaConfig",
            # decorators
@@ -26,11 +27,12 @@ __all__ = ["ChikaArgumentParser",
 # fileio
 JSON_SUFFIXES = {".json"}
 YAML_SUFFIXES = {".yaml", ".yml"}
+SUPPORTED_SUFFIXES = (JSON_SUFFIXES | YAML_SUFFIXES)
 
 
 def is_supported_filetype(file: str
                           ) -> bool:
-    return Path(file).suffix in (JSON_SUFFIXES | YAML_SUFFIXES)
+    return Path(file).suffix in SUPPORTED_SUFFIXES
 
 
 def load_from_file(file: str
@@ -141,8 +143,8 @@ class ChikaArgumentParser(argparse.ArgumentParser):
                 if kwargs.get("required") is None:
                     kwargs["default"] = field.default
 
-            # foo: bool = True -> --foo makes foo False
             elif field_type is bool or field_type is Optional[bool]:
+                # foo: bool = True -> --foo makes foo False
                 kwargs["action"] = "store_false" if field.default is True else "store_true"
 
             elif self._is_type_list_or_tuple(field_type):
@@ -150,8 +152,8 @@ class ChikaArgumentParser(argparse.ArgumentParser):
                     kwargs["nargs"] = "+"
                 kwargs["type"] = field_type
 
-            # for ChikaConfig
             elif dataclasses.is_dataclass(field_type):
+                # for ChikaConfig
                 if nest_level > 0:
                     raise NotImplementedError("The depth of config is expected to be at most 2")
 
@@ -169,35 +171,41 @@ class ChikaArgumentParser(argparse.ArgumentParser):
                     raise NotImplementedError("dataclass as default value is not supported")
                 continue
 
-            # for int, float, str
             else:
+                # for int, float, str
                 kwargs["type"] = field_type
-                # value is not missing
-                # if nest_level > 0:
-                #     kwargs["default"] = argparse.SUPPRESS
                 if field.default is dataclasses.MISSING and kwargs.get("default") is None:
-                    kwargs["required"] = True
+                    if nest_level == 0:
+                        kwargs["required"] = True
+                    else:
+                        # when nested, mark the value
+                        kwargs["default"] = _DefaultUntouched(None)
                     kwargs["help"] += " (required)"
                 elif field.default is not dataclasses.MISSING:
-                    kwargs["default"] = field.default
+                    kwargs["default"] = field.default if nest_level == 0 else _DefaultUntouched(field.default)
+                elif nest_level > 0 and kwargs.get("default") is not None:
+                    kwargs["default"] = _DefaultUntouched(kwargs["default"])
 
             self.add_argument(field_name, **kwargs)
 
     def parse_args_into_dataclass(self,
                                   args: Optional[List[str]] = None,
                                   ) -> [ChikaConfig, Any]:
-        print(self.print_help())
         namespace, remaining_args = self.parse_known_args(args=args)
         name_to_type = typing.get_type_hints(self.dataclass_type)
         unflatten_dict = defaultdict(dict)
         for k, v in vars(namespace).items():
-            print(k, v)
-            # ChikaConfig
             if dataclasses.is_dataclass(name_to_type.get(k)):
+                # ChikaConfig
                 if isinstance(v, str) and is_supported_filetype(v):
-                    unflatten_dict[k] = load_from_file(v)
+                    loaded = load_from_file(v)
+                    for _k, _v in loaded.items():
+                        if unflatten_dict[k].get(_k) is not None:
+                            old = unflatten_dict[k][_k]
+                            # if user changes value, use that value, otherwise load from file
+                            unflatten_dict[k][_k] = _v if isinstance(old, _DefaultUntouched) else old
                 else:
-                    raise TypeError(f"{k}={v}")
+                    raise RuntimeError(f"Unsupported filetype, config file must be one of {SUPPORTED_SUFFIXES}")
             elif "." in k:
                 # ChikaConfig's child
                 cls_name, cls_field = k.split(".", 1)
@@ -216,7 +224,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
 
 # configs
 
-def with_help(default: Any,
+def with_help(default: Any, *,
               help: Optional[str] = None
               ) -> dataclasses.Field:
     """ Add help to ChikaConfig, which is used in ArgumentParser.
@@ -278,7 +286,7 @@ def sequence(*values: Any,
 
 def required(*, help: Optional[str] = None
              ) -> dataclasses.Field:
-    """ Add a missing value with a help message. This value must be specified later. ::
+    """ Add a missing value. This value must be specified later. ::
 
     Args:
         help: help message
@@ -293,14 +301,41 @@ def required(*, help: Optional[str] = None
     return dataclasses.field(metadata=meta)
 
 
-def bounded(default: Any,
-            _from: Number,
-            _to: Number,
+def bounded(default: Optional[Number] = None,
+            _from: Optional[Number] = None,
+            _to: Optional[Number] = None,
             *,
             help: Optional[str] = None
             ) -> dataclasses.Field:
-    # use metaclass[type]
-    pass
+    """
+
+    Args:
+        default:
+        _from:
+        _to:
+        help:
+
+    Returns:
+
+    """
+    _from = -math.inf if _from is None else _from
+    _to = math.inf if _to is None else _to
+    if isinstance(default, Number) and not (_from <= default <= _to):
+        raise ValueError("default value is out of range")
+
+    def _impl(val: Number):
+        if not isinstance(val, Number):
+            raise ValueError(f"value needs to be number, but got {type(val)}")
+        if not (_from <= val <= _to):
+            raise ValueError(f"value is expected to be from {_from} to {_to}, but got {val} instead")
+        return val
+
+    meta = {"type": _impl}
+    if default is not None:
+        meta["default"] = default
+    if help is not None:
+        meta["help"] = help
+    return dataclasses.field(metadata=meta)
 
 
 @dataclasses.dataclass

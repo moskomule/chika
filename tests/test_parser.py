@@ -1,12 +1,13 @@
-from dataclasses import dataclass
+import json
 from typing import List
 
 import pytest
-from chika.chika import ChikaArgumentParser, choices, required, sequence, with_help
+
+from chika.chika import ChikaArgumentParser, bounded, choices, config, required, sequence, with_help
 
 
 def test_simple_case():
-    @dataclass
+    @config
     class A:
         a: int
         b: int = 2
@@ -35,20 +36,24 @@ def test_simple_case():
 
 
 def test_nested_case():
-    @dataclass
+    @config
     class A:
         a: int
 
-    @dataclass
+    @config
     class B:
         a: float
         b: A = A(1)
+
+    r, _ = ChikaArgumentParser(B).parse_args_into_dataclass(["--a", "3.2"])
+    assert r.a == 3.2
+    assert r.b.a == 1
 
     r, _ = ChikaArgumentParser(B).parse_args_into_dataclass(["--a", "3.2", "--b.a", "2"])
     assert r.a == 3.2
     assert r.b.a == 2
 
-    @dataclass
+    @config
     class C:
         c: B
 
@@ -57,8 +62,34 @@ def test_nested_case():
         ChikaArgumentParser(C).parse_args_into_dataclass([])
 
 
+def test_from_file(tmp_path):
+    json_file = tmp_path / "test.json"
+    with json_file.open("w") as f:
+        json.dump({"a": 1, "b": 0.2}, f)
+
+    @config
+    class A:
+        a: int
+        b: float
+
+    @config
+    class B:
+        a: float
+        b: A
+
+    r, _ = ChikaArgumentParser(B).parse_args_into_dataclass(f"--a 0.1 --b {json_file}".split())
+    assert r.a == 0.1
+    assert r.b.a == 1
+    assert r.b.b == 0.2
+
+    r, _ = ChikaArgumentParser(B).parse_args_into_dataclass(f"--a 0.1 --b {json_file} --b.b 0.3".split())
+    assert r.a == 0.1
+    assert r.b.a == 1
+    assert r.b.b == 0.3
+
+
 def test_choices():
-    @dataclass
+    @config
     class A:
         a: int = choices(1, 2, 3)
 
@@ -73,7 +104,7 @@ def test_choices():
 
 
 def test_sequence():
-    @dataclass
+    @config
     class A:
         a: List[int] = sequence(1, 2, 3, size=3)
 
@@ -88,7 +119,7 @@ def test_sequence():
 
 
 def test_required():
-    @dataclass
+    @config
     class A:
         a: int = required()
 
@@ -101,9 +132,29 @@ def test_required():
 
 
 def test_with_help():
-    @dataclass
+    @config
     class A:
         a: int = with_help(1, "this is help")
 
     r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
     assert r.a == 1
+
+
+def test_bounded():
+    with pytest.raises(ValueError):
+        bounded(1, -1, 0.9)
+
+    with pytest.raises(ValueError):
+        bounded(1, 1.1, 2)
+
+    with pytest.raises(ValueError):
+        bounded(1, 1, -1)
+
+    @config
+    class A:
+        a: int = bounded(1, -1, 2)
+
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
+    assert r.a == 1
+
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", ])
