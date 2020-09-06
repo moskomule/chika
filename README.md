@@ -66,6 +66,27 @@ python main.py --model config/densenet.yaml --model.depth 24
 
 python main.py --optim.decay_steps 120 150
 # config.optim.decay_steps == [120, 150]
+
+python main.py -h
+#usage: test.py [-h] [--model MODEL] [--model.name {resnet,densenet}] [--model.depth MODEL.DEPTH] [--data DATA] --data.name DATA.NAME [--optim OPTIM] [--optim.steps OPTIM.STEPS [OPTIM.STEPS ...]]
+#               [--seed SEED] [--use_amp] [--gpu {1,2,3}]
+#
+#optional arguments:
+#  -h, --help            show this help message and exit
+#  --model MODEL         load {yaml,yml,json} file for model if necessary
+#  --model.name {resnet,densenet}
+#                        (default: 'resnet')
+#  --model.depth MODEL.DEPTH
+#                        (default: 10)
+#  --data DATA           load {yaml,yml,json} file for data if necessary
+#  --data.name DATA.NAME
+#                        name of dataset (required) (default: None)
+#  --optim OPTIM         load {yaml,yml,json} file for optim if necessary
+#  --optim.steps OPTIM.STEPS [OPTIM.STEPS ...]
+#                        (default: [100, 150])
+#  --seed SEED           random seed (default: 1)
+#  --use_amp             (default: False)
+#  --gpu {1,2,3}         id of gpu (default: 1)
 ```
 
 Child configs can be updated via YAML or JSON files.
