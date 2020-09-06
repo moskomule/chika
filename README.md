@@ -8,7 +8,7 @@
 
 ## Usage
 
-Write typed configurations using `chika.config`, which is similar to `dataclass`.
+Write typed configurations using `chika.config`, which depends on `dataclass`.
 
 ```python
 # main.py
@@ -38,20 +38,16 @@ class Config:
     seed: int = chika.with_help(1, help="random seed")
     use_amp: bool = False
     gpu: int = chika.choices(range(torch.cuda.device_count()), help="id of gpu")
+```
 
+Wrap the main function with `chika.main(BaseConfig)`.
 
+```python
 @chika.main(Config)
 def main(cfg: Config):
     model = ModelRegistry(cfg.model)
     ...
 
-```
-
-```yaml
-# config/densenet.yaml
-model:
-  name: densenet
-  depth: 12 
 ```
 
 ### Expected Behavior
@@ -72,6 +68,16 @@ python main.py --optim.decay_steps 120 150
 # config.optim.decay_steps == [120, 150]
 ```
 
+Child config can be updated via YAML or JSON files.
+
+```yaml
+# config/densenet.yaml
+model:
+  name: densenet
+  depth: 12 
+```
+
+
 ### Other APIs
 
 ```python
@@ -82,6 +88,25 @@ cfg.to_dict()
 # {"model": {"name": "resnet", "zero_init": True, ...}, ...}
 ```
 
-### Known issues
+### Working Directory
 
--[ ] config cannot be nested twice. `Config(Config(...))` is valid, but `Config(Config(Config(...)))` is invalid.
+`change_job_dir=True` creates a unique directory for each run. 
+
+```python
+@chika.main(Config, change_job_dir=True)
+def main(cfg):
+    print(Path(".").resolve())
+    # /home/user/outputs/0901-122412-558f5a
+    print(Path(".") / "weights.pt")
+    # /home/user/outputs/0901-122412-558f5a/weights.pt
+    print(chika.original_path)
+    # /home/user
+    print(chika.resolve_original_path("weights.pt"))
+    # /home/user/weights.pt
+```
+
+
+### Known issues and ToDos
+
+-[ ] Configs cannot be nested twice. `Config(Config(...))` is valid, but `Config(Config(Config(...)))` is invalid.
+-[ ] Configs loaded from files are not validated.

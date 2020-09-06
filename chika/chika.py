@@ -4,9 +4,12 @@ import argparse
 import dataclasses
 import json
 import math
+import os
 import types
 import typing
+import uuid
 from collections import defaultdict
+from datetime import datetime
 from enum import Enum
 from functools import wraps
 from numbers import Number
@@ -20,6 +23,8 @@ __all__ = ["ChikaArgumentParser",
            "with_help", "choices", "sequence", "required", "bounded",
            # config
            "ChikaConfig",
+           # path
+           "original_path", "resolve_original_path",
            # decorators
            "config",
            "main"]
@@ -390,17 +395,52 @@ def config(cls=None
     return wrap if cls is None else wrap(cls)
 
 
+# JOB_ID is expected to be a unique such as
+# 0901-122412-558f5a
+JOB_ID = datetime.now().strftime('%Y_%m%d-%H%M%S-') + uuid.uuid4().hex[-6:]
+ORIGINAL_PATH = Path(".").resolve()
+original_path = ORIGINAL_PATH
+
+
+def resolve_original_path(path: str or Path
+                          ) -> Path:
+    return ORIGINAL_PATH / path
+
+
 # entry point
 def main(cfg_cls: Type[ChikaConfig],
-         strict: bool = False
+         strict: bool = False,
+         change_job_dir: bool = False,
+         job_root: Optional[str] = "outputs"
          ) -> Callable:
+    """
+
+    Args:
+        cfg_cls:
+        strict:
+        change_job_dir:
+        job_root:
+
+    Returns:
+
+    """
+
     def _decorator(func: Callable):
         @wraps(func)
         def _wrapper():
             _config, remaining_args = ChikaArgumentParser(cfg_cls).parse_args_into_dataclass()
             if strict and len(remaining_args) > 0:
                 raise ValueError(f"Some specified arguments are not used by ChikaArgumentParser: {remaining_args}")
-            return func(_config)
+            if change_job_dir:
+                job_dir = Path(job_root) / JOB_ID
+                job_dir.mkdir(parents=True, exist_ok=True)
+                os.chdir(job_dir)
+                save_as_file("run.yaml", _config.to_dict())
+            try:
+                return func(_config)
+            finally:
+                # after finishing the job...
+                os.chdir(original_path)
 
         return _wrapper
 
