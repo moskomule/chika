@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 import yaml
 
 __all__ = ["ChikaArgumentParser",
-           # space functions
+           # functions for ChikaConfig
            "with_help", "choices", "sequence", "required", "bounded",
            # config
            "ChikaConfig",
@@ -419,17 +419,15 @@ def resolve_original_path(path: str or Path
 def main(cfg_cls: Type[ChikaConfig],
          strict: bool = False,
          change_job_dir: bool = False,
-         job_root: Optional[str] = "outputs"
          ) -> Callable:
-    """
+    """ Wrapper of the main function
 
     Args:
-        cfg_cls:
-        strict:
-        change_job_dir:
-        job_root:
+        cfg_cls: ChikaConfig
+        strict: check if unspecified arguments exist. If True and unspecified arguments exist, raise ValueError
+        change_job_dir: specify if a job specific current directory is used
 
-    Returns:
+    Returns: returned value of the wrapped function
 
     """
 
@@ -440,7 +438,7 @@ def main(cfg_cls: Type[ChikaConfig],
             if strict and len(remaining_args) > 0:
                 raise ValueError(f"Some specified arguments are not used by ChikaArgumentParser: {remaining_args}")
             if change_job_dir:
-                job_dir = Path(job_root) / JOB_ID
+                job_dir = Path("outputs") / JOB_ID
                 job_dir.mkdir(parents=True, exist_ok=True)
                 os.chdir(job_dir)
                 save_as_file("run.yaml", _config.to_dict())

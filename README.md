@@ -22,7 +22,7 @@ class ModelConfig:
 @chika.config
 class DataConfig:
     # values that needs to be specified
-    name: str = chika.required()
+    name: str = chika.required(help="name of dataset")
 
 @chika.config
 class OptimConfig:
@@ -30,7 +30,7 @@ class OptimConfig:
     steps: List[int] = chika.sequence(100, 150)
 
 @chika.config
-class Config:
+class BaseConfig:
     model: ModelConfig
     data: DataConfig
     optim: OptimConfig
@@ -40,17 +40,17 @@ class Config:
     gpu: int = chika.choices(range(torch.cuda.device_count()), help="id of gpu")
 ```
 
-Wrap the main function with `chika.main(BaseConfig)`.
+Then, wrap the main function with `chika.main(BaseConfig)`.
 
 ```python
 @chika.main(Config)
 def main(cfg: Config):
+    set_seed(cfg.seed)
     model = ModelRegistry(cfg.model)
     ...
-
 ```
 
-### Expected Behavior
+Now, `main.py` can be executed as...
 
 ```commandline
 python main.py --use_amp
@@ -68,7 +68,7 @@ python main.py --optim.decay_steps 120 150
 # config.optim.decay_steps == [120, 150]
 ```
 
-Child config can be updated via YAML or JSON files.
+Child configs can be updated via YAML or JSON files.
 
 ```yaml
 # config/densenet.yaml
@@ -77,15 +77,19 @@ model:
   depth: 12 
 ```
 
-
-### Other APIs
+For `chika.Config`, the following functions are prepared:
 
 ```python
-from chika import ChikaConfig
-cfg = ChikaConfig.from_dict(...)
-
-cfg.to_dict()
-# {"model": {"name": "resnet", "zero_init": True, ...}, ...}
+def with_help(default, help): ...
+# add help message
+def choices(*values, help): ...
+# add candidates that should be selected
+def sequence(*values, size, help): ...
+# add a list. size can be specified
+def required(*, help): ...
+# add a required value
+def bounded(default, _from, _to, * help): ...
+# add boundaries
 ```
 
 ### Working Directory
@@ -103,6 +107,16 @@ def main(cfg):
     # /home/user
     print(chika.resolve_original_path("weights.pt"))
     # /home/user/weights.pt
+```
+
+### Other APIs
+
+```python
+from chika import ChikaConfig
+cfg = ChikaConfig.from_dict(...)
+
+cfg.to_dict()
+# {"model": {"name": "resnet", "zero_init": True, ...}, ...}
 ```
 
 
