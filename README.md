@@ -1,4 +1,4 @@
-# chika
+# chika ![](https://github.com/moskomule/chika/workflows/pytest/badge.svg)
 
 `chika` is a simple and easy config tool for hierarchical configurations.
 
@@ -37,7 +37,7 @@ class BaseConfig:
 
     seed: int = chika.with_help(1, help="random seed")
     use_amp: bool = False
-    gpu: int = chika.choices(range(torch.cuda.device_count()), help="id of gpu")
+    gpu: int = chika.choices(*range(torch.cuda.device_count()), help="id of gpu")
 ```
 
 Then, wrap the main function with `chika.main(BaseConfig)`.
