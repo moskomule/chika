@@ -23,35 +23,31 @@ def test_simple_case():
     assert r.d
     assert r.e == "test"
 
-    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--c", "--d"])
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "1", "--c", "--d"])
     assert r.c
     assert not r.d
 
-    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--e", "train"])
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "1", "--e", "train"])
     assert r.e == "train"
 
     with pytest.raises(SystemExit):
         # https://stackoverflow.com/questions/39028204/using-unittest-to-test-argparse-exit-errors
-        ChikaArgumentParser(A).parse_args_into_dataclass(["--b", "1.0"])
+        ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "1", "--b", "1.0"])
 
 
 def test_nested_case():
     @config
     class A:
-        a: int
+        a: int = 1
 
     @config
     class B:
         a: float
-        b: A = A(1)
+        b: A
 
     r, _ = ChikaArgumentParser(B).parse_args_into_dataclass(["--a", "3.2"])
     assert r.a == 3.2
     assert r.b.a == 1
-
-    r, _ = ChikaArgumentParser(B).parse_args_into_dataclass(["--a", "3.2", "--b.a", "2"])
-    assert r.a == 3.2
-    assert r.b.a == 2
 
     @config
     class C:
@@ -134,7 +130,7 @@ def test_required():
 def test_with_help():
     @config
     class A:
-        a: int = with_help(1, "this is help")
+        a: int = with_help(1, help="this is help")
 
     r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
     assert r.a == 1
@@ -157,4 +153,8 @@ def test_bounded():
     r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
     assert r.a == 1
 
-    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", ])
+    with pytest.raises(SystemExit):
+        r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "-1.1"])
+
+    with pytest.raises(SystemExit):
+        r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "2.1"])

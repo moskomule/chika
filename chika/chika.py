@@ -76,9 +76,6 @@ class _DefaultUntouched(object):
                  value: Any):
         self.value = value
 
-    def __cal__(self):
-        return self.value
-
     def __repr__(self):
         return self.value.__repr__()
 
@@ -155,7 +152,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
             elif self._is_type_list_or_tuple(field_type):
                 if kwargs.get("nargs") is None:
                     kwargs["nargs"] = "+"
-                kwargs["type"] = field_type
+                kwargs["type"] = typing.get_args(field_type)[0]
 
             elif dataclasses.is_dataclass(field_type):
                 # for ChikaConfig
@@ -218,7 +215,18 @@ class ChikaArgumentParser(argparse.ArgumentParser):
             else:
                 unflatten_dict[k] = v
 
-        dclass = self.dataclass_type.from_dict(unflatten_dict)
+        def remove_default_untouched(d: Dict):
+            _d = {}
+            for k, v in d.items():
+                if isinstance(v, _DefaultUntouched):
+                    _d[k] = v.value
+                elif isinstance(v, dict):
+                    _d[k] = remove_default_untouched(v)
+                else:
+                    _d[k] = v
+            return _d
+
+        dclass = self.dataclass_type.from_dict(remove_default_untouched(unflatten_dict))
         return dclass, remaining_args
 
     @staticmethod
