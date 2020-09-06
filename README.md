@@ -4,7 +4,7 @@
 
 ## Requirements
 
-* Python>=3.7
+* Python>=3.8 (`typing.get_*` requires Python3.8 or higher)
 
 ## Usage
 
