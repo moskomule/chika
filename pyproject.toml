@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "chika"
+version = "0.1.0"
+description = "A simple and easy config tool for hierarchical configurations."
+
+license = "MIT"
+
+authors = [
+    "Ryuichiro Hataya"
+]
+
+readme = "README.md"
+
+repository = "https://github.com/moskomule/chika"
+homepage = "https://github.com/moskomule/chika"
+
+keywords = ["configuration"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+PyYAML = "^5.3"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.0"
+tox = "^3.20"
+pytest-cov = "^2.10"
+codecov = "^2.1"
+
+[build-system]
+requires = ["poetry>=1.0"]
+build-backend = "poetry.masonry.api"
