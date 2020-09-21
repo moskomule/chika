@@ -43,8 +43,8 @@ class BaseConfig:
 Then, wrap the main function with `chika.main(BaseConfig)`.
 
 ```python
-@chika.main(Config)
-def main(cfg: Config):
+@chika.main(BaseConfig)
+def main(cfg: BaseConfig):
     set_seed(cfg.seed)
     model = ModelRegistry(cfg.model)
     ...
