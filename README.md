@@ -6,6 +6,19 @@
 
 * Python>=3.8 (`typing.get_*` requires Python3.8 or higher)
 
+## Installation
+
+```
+pip install -U chika
+```
+
+or
+
+```
+pip install -U git+https://github.com/moskomule/chika
+```
+
+
 ## Usage
 
 Write typed configurations using `chika.config`, which depends on `dataclass`.
@@ -145,5 +158,4 @@ cfg.to_dict()
 
 - [ ] Configs cannot be nested twice or more than twice. `Config(Config(...))` is valid, but `Config(Config(Config(...)))` is invalid.
 - [ ] Configs loaded from files are not validated.
-
 - [ ] Upload to PyPi.
