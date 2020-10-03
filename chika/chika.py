@@ -253,7 +253,7 @@ def with_help(default: Any, *,
     meta = {'default': default}
     if help is not None:
         meta['help'] = help
-    return dataclasses.field(metadata=meta)
+    return dataclasses.field(default=default, metadata=meta)
 
 
 def choices(*values: Any,
@@ -294,7 +294,7 @@ def sequence(*values: Any,
         meta['nargs'] = size
     if help is not None:
         meta['help'] = help
-    return dataclasses.field(metadata=meta)
+    return dataclasses.field(default=None, metadata=meta)
 
 
 def required(*, help: Optional[str] = None
@@ -311,7 +311,7 @@ def required(*, help: Optional[str] = None
     meta = {'required': True}
     if help is not None:
         meta['help'] = help
-    return dataclasses.field(metadata=meta)
+    return dataclasses.field(default=None, metadata=meta)
 
 
 def bounded(default: Optional[Number] = None,
@@ -320,13 +320,13 @@ def bounded(default: Optional[Number] = None,
             *,
             help: Optional[str] = None
             ) -> dataclasses.Field:
-    """
+    """ Bound an argument value in (_from, _to).
 
     Args:
-        default:
-        _from:
-        _to:
-        help:
+        default: Default value
+        _from: Lower bound value
+        _to: Upper bound value
+        help: help message
 
     Returns:
 
@@ -348,7 +348,7 @@ def bounded(default: Optional[Number] = None,
         meta["default"] = default
     if help is not None:
         meta["help"] = help
-    return dataclasses.field(metadata=meta)
+    return dataclasses.field(default=default, metadata=meta)
 
 
 @dataclasses.dataclass
