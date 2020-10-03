@@ -9,5 +9,7 @@ setup(
     author="Ryuichiro Hataya",
     python_requires=">=3.8",
     install_requires=install_requires,
-    packages=find_packages(exclude=("tests",))
+    packages=find_packages(exclude=("tests",)),
+    long_description=open("README.md", mode="r").read(),
+    long_description_content_type="text/markdown",
 )
