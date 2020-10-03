@@ -131,7 +131,7 @@ def bounded(default, _from, _to, * help): ...
 `change_job_dir=True` creates a unique directory for each run. 
 
 ```python
-@chika.main(Config, change_job_dir=True)
+@chika.main(BaseConfig, change_job_dir=True)
 def main(cfg):
     print(Path(".").resolve())
     # /home/user/outputs/0901-122412-558f5a
