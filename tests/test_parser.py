@@ -88,6 +88,7 @@ def test_choices():
     @config
     class A:
         a: int = choices(1, 2, 3)
+        b: int = 1
 
     r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
     assert r.a == 1
@@ -98,11 +99,20 @@ def test_choices():
     with pytest.raises(SystemExit):
         ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "4"])
 
+    @config
+    class A:
+        b: int = 1
+        a: int = choices(1, 2, 3)
+
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
+    assert r.a == 1
+
 
 def test_sequence():
     @config
     class A:
         a: List[int] = sequence(1, 2, 3, size=3)
+        b: int = 1
 
     r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
     assert r.a == [1, 2, 3]
@@ -113,11 +123,20 @@ def test_sequence():
     with pytest.raises(SystemExit):
         ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "1"])
 
+    @config
+    class A:
+        b: int = 1
+        a: List[int] = sequence(1, 2, 3, size=3)
+
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
+    assert r.a == [1, 2, 3]
+
 
 def test_required():
     @config
     class A:
         a: int = required()
+        b: int = 1
 
     r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "1"])
     assert r.a == 1
@@ -126,10 +145,27 @@ def test_required():
         # a is required
         ChikaArgumentParser(A).parse_args_into_dataclass([])
 
+    @config
+    class A:
+        b: int = 1
+        a: int = required()
+
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "1"])
+    assert r.a == 1
+
 
 def test_with_help():
     @config
     class A:
+        a: int = with_help(1, help="this is help")
+        b: int = 1
+
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
+    assert r.a == 1
+
+    @config
+    class A:
+        b: int = 1
         a: int = with_help(1, help="this is help")
 
     r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
@@ -149,6 +185,7 @@ def test_bounded():
     @config
     class A:
         a: int = bounded(1, -1, 2)
+        b: int = 1
 
     r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
     assert r.a == 1
@@ -158,3 +195,11 @@ def test_bounded():
 
     with pytest.raises(SystemExit):
         r, _ = ChikaArgumentParser(A).parse_args_into_dataclass(["--a", "2.1"])
+
+    @config
+    class A:
+        b: int = 1
+        a: int = bounded(1, -1, 2)
+
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
+    assert r.a == 1
