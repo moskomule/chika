@@ -145,5 +145,4 @@ cfg.to_dict()
 
 - [ ] Configs cannot be nested twice or more than twice. `Config(Config(...))` is valid, but `Config(Config(Config(...)))` is invalid.
 - [ ] Configs loaded from files are not validated.
-
 - [ ] Upload to PyPi.
