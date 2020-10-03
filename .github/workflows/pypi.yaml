@@ -29,5 +29,5 @@ jobs:
       - name: Publish distribution to PyPI
         if: startsWidh(github.ref, 'refs/tags')
         uses: pypa/gh-action-pypi-publish@master
-        widh:
+        with:
           password: ${{ secrets.pypi_password }}
