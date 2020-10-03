@@ -4,10 +4,10 @@ install_requires = ["PyYAML"]
 
 setup(
     name="chika",
-    version="0.0.1",
-    description="`chika` is a dataclass-based simple and easy config tool",
+    version="0.0.2",
+    description="chika: a dataclass-based simple and easy config tool",
     author="Ryuichiro Hataya",
     python_requires=">=3.8",
     install_requires=install_requires,
-    packages=find_packages()
+    packages=find_packages(exclude=("tests",))
 )
