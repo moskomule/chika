@@ -56,8 +56,8 @@ class BaseConfig:
 Then, wrap the main function with `chika.main(BaseConfig)`.
 
 ```python
-@chika.main(Config)
-def main(cfg: Config):
+@chika.main(BaseConfig)
+def main(cfg: BaseConfig):
     set_seed(cfg.seed)
     model = ModelRegistry(cfg.model)
     ...
@@ -158,4 +158,3 @@ cfg.to_dict()
 
 - [ ] Configs cannot be nested twice or more than twice. `Config(Config(...))` is valid, but `Config(Config(Config(...)))` is invalid.
 - [ ] Configs loaded from files are not validated.
-- [ ] Upload to PyPi.
