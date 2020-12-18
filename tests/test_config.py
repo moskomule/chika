@@ -27,3 +27,18 @@ def test_nested_config():
     b = B(C(1), 3)
     assert b.to_dict() == {"a": {"c": 1}, "b": 3}
     assert B.from_dict({"a": {"c": 1}, "b": 3}) == b
+
+
+def test_inherited_config():
+    @config
+    class C:
+        a: int = 1
+        b: int = 2
+
+    @config
+    class B(C):
+        a: int = 2
+        c: int = 3
+
+    b = B()
+    assert b.to_dict() == {"a": 2, "b": 2, "c": 3}

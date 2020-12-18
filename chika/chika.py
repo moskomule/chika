@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import inspect
 import json
 import math
 import os
@@ -197,6 +198,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
         namespace, remaining_args = self.parse_known_args(args=args)
         name_to_type = typing.get_type_hints(self.dataclass_type)
         unflatten_dict = defaultdict(dict)
+        # todo: more nested configs
         for k, v in vars(namespace).items():
             if dataclasses.is_dataclass(name_to_type.get(k)):
                 # ChikaConfig
@@ -295,7 +297,7 @@ def sequence(*values: Any,
         meta['nargs'] = size
     if help is not None:
         meta['help'] = help
-    return dataclasses.field(default=None, metadata=meta)
+    return dataclasses.field(default=tuple(values), metadata=meta)
 
 
 def required(*, help: Optional[str] = None
@@ -396,8 +398,12 @@ def config(cls=None
     """
 
     def wrap(cls):
+        # mro[0] is cls and mro[-1] is object
+        other_bases = tuple(inspect.getmro(cls)[1:-1])
+        # order matters in inheritance
+        bases = other_bases if ChikaConfig in other_bases else (ChikaConfig,) + other_bases
         # create cls whose baseclass is ChikaConfig
-        cls = types.new_class(cls.__name__, (ChikaConfig,), {}, lambda ns: ns.update(cls.__dict__))
+        cls = types.new_class(cls.__name__, bases, {}, lambda ns: ns.update(cls.__dict__))
         # make cls to dataclass
         return dataclasses.dataclass(cls)
 
