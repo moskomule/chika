@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import inspect
-import json
 import math
 import os
 import types
@@ -16,9 +15,11 @@ from enum import Enum
 from functools import wraps
 from numbers import Number
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
-import yaml
+from .utils import (DefaultUntouched, SUPPORTED_SUFFIXES, _container_types, _is_container_type,
+                    _primitive_types,
+                    _unpack_optional, is_supported_filetype, load_from_file, save_as_file)
 
 __all__ = ["ChikaArgumentParser",
            # functions for ChikaConfig
@@ -30,96 +31,6 @@ __all__ = ["ChikaArgumentParser",
            # decorators
            "config",
            "main"]
-
-# fileio
-JSON_SUFFIXES = {".json"}
-YAML_SUFFIXES = {".yaml", ".yml"}
-SUPPORTED_SUFFIXES = (JSON_SUFFIXES | YAML_SUFFIXES)
-
-
-def is_supported_filetype(file: str
-                          ) -> bool:
-    return Path(file).suffix in SUPPORTED_SUFFIXES
-
-
-def load_from_file(file: str
-                   ) -> Dict[str, Any]:
-    file = Path(file)
-    if not file.exists():
-        raise FileNotFoundError(f"{file} not found")
-    if not is_supported_filetype(file):
-        raise RuntimeError(f"Unsupported file type with a suffix of {file.suffix}")
-
-    with file.open() as f:
-        if file.suffix in JSON_SUFFIXES:
-            return json.load(f)
-        elif file.suffix in YAML_SUFFIXES:
-            return yaml.safe_load(f)
-
-
-def save_as_file(file: str,
-                 state_dict: Dict[str, Any]
-                 ) -> None:
-    file = Path(file)
-    if not is_supported_filetype(file):
-        raise RuntimeError(f"Unsupported file type with a suffix of {file.suffix}")
-    file.parent.mkdir(exist_ok=True, parents=True)
-    with file.open("w") as f:
-        if file.suffix in JSON_SUFFIXES:
-            json.dump(state_dict, f)
-        elif file.suffix in YAML_SUFFIXES:
-            yaml.safe_dump(state_dict, f)
-
-
-# mark default values
-class _DefaultUntouched(object):
-    # mark as untouched default
-    def __init__(self,
-                 value: Any):
-        self.value = value
-
-    def __repr__(self):
-        return self.value.__repr__()
-
-
-# handle types
-_container_types = {list, tuple, set, frozenset, List, Tuple, Set}
-_primitive_types = {bool, int, float, str}
-
-
-def _is_optional(_type) -> bool:
-    # Optional is Union and its final argument is NoneType
-    if typing.get_origin(_type) is Union:
-        last_arg = typing.get_args(_type)[-1]
-        # check if NoneType
-        return last_arg is type(None)
-    return False
-
-
-def _unpack_optional(_type):
-    # unpack Optional
-    if not _is_optional(_type):
-        return _type
-
-    args = typing.get_args(_type)[0]
-    if len(args) > 1:
-        warnings.warn(f"Got complex type: {_type}.")
-
-    first_arg = args[0]
-    if first_arg in _primitive_types:
-        #  Optional[int] -> int
-        return first_arg
-
-    origin = typing.get_origin(first_arg)
-    if origin in _container_types:
-        return first_arg
-
-    raise ValueError(f"Got unsupported type: {_type}")
-
-
-def _is_container_type(_type) -> bool:
-    origin = typing.get_origin(_type)
-    return _type in _container_types or origin in _container_types
 
 
 # argument parser
@@ -215,12 +126,12 @@ class ChikaArgumentParser(argparse.ArgumentParser):
                         kwargs["required"] = True
                     else:
                         # when nested, mark the value
-                        kwargs["default"] = _DefaultUntouched(None)
+                        kwargs["default"] = DefaultUntouched(None)
                     kwargs["help"] += " (required)"
                 elif field.default is not dataclasses.MISSING:
-                    kwargs["default"] = field.default if nest_level == 0 else _DefaultUntouched(field.default)
+                    kwargs["default"] = field.default if nest_level == 0 else DefaultUntouched(field.default)
                 elif nest_level > 0 and kwargs.get("default") is not None:
-                    kwargs["default"] = _DefaultUntouched(kwargs["default"])
+                    kwargs["default"] = DefaultUntouched(kwargs["default"])
 
             self.add_argument(field_name, **kwargs)
 
@@ -240,7 +151,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
                         if unflatten_dict[k].get(_k) is not None:
                             old = unflatten_dict[k][_k]
                             # if user changes value, use that value, otherwise load from file
-                            unflatten_dict[k][_k] = _v if isinstance(old, _DefaultUntouched) else old
+                            unflatten_dict[k][_k] = _v if isinstance(old, DefaultUntouched) else old
                 else:
                     raise RuntimeError(f"Unsupported filetype, config file must be one of {SUPPORTED_SUFFIXES}")
             elif "." in k:
@@ -250,10 +161,10 @@ class ChikaArgumentParser(argparse.ArgumentParser):
             else:
                 unflatten_dict[k] = v
 
-        def remove_default_untouched(d: Dict):
+        def remove_default_untouched(d):
             _d = {}
             for k, v in d.items():
-                if isinstance(v, _DefaultUntouched):
+                if isinstance(v, DefaultUntouched):
                     _d[k] = v.value
                 elif isinstance(v, dict):
                     _d[k] = remove_default_untouched(v)
@@ -393,17 +304,35 @@ class ChikaConfig:
 
     @classmethod
     def from_dict(cls,
-                  state_dict: Dict[str, Any]
+                  state_dict: Dict[str, Any],
+                  allow_missing: bool = False
                   ) -> ChikaConfig:
         _state_dict = {}
-        field_type = typing.get_type_hints(cls)
+        field_type_hints = typing.get_type_hints(cls)
         for field in dataclasses.fields(cls):
             name = field.name
-            if dataclasses.is_dataclass(field_type[name]):
+            if dataclasses.is_dataclass(field_type_hints[name]):
                 # ChikaConfig
-                _state_dict[name] = field_type[name].from_dict(state_dict[name])
+                _state_dict[name] = field_type_hints[name].from_dict(state_dict[name])
+            elif name in state_dict.keys():
+                value = state_dict[name]
+                ft = _unpack_optional(field.type)
+                if ft in _primitive_types:
+                    if value is not None:
+                        _state_dict[name] = ft(value)
+                elif typing.get_origin(ft) in _container_types:
+                    # list[str] -> list
+                    origin = typing.get_origin(ft)
+                    if origin in _container_types.keys():
+                        origin = _container_types[origin]
+                    if value is not None:
+                        _state_dict[name] = origin(value)
+                else:
+                    _state_dict[name] = state_dict[name]
             else:
-                _state_dict[name] = state_dict[name]
+                if not allow_missing:
+                    raise ValueError(f"key={name} is expected, but could not be found")
+
         return cls(**_state_dict)
 
     def __repr__(self):
