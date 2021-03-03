@@ -330,7 +330,9 @@ class ChikaConfig:
                 else:
                     _state_dict[name] = state_dict[name]
             else:
-                if not allow_missing:
+                if allow_missing:
+                    _state_dict[name] = None
+                else:
                     raise ValueError(f"key={name} is expected, but could not be found")
 
         return cls(**_state_dict)
