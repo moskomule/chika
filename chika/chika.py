@@ -16,7 +16,7 @@ from enum import Enum
 from functools import wraps
 from numbers import Number
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 import yaml
 
@@ -82,6 +82,46 @@ class _DefaultUntouched(object):
         return self.value.__repr__()
 
 
+# handle types
+_container_types = {list, tuple, set, frozenset, List, Tuple, Set}
+_primitive_types = {bool, int, float, str}
+
+
+def _is_optional(_type) -> bool:
+    # Optional is Union and its final argument is NoneType
+    if typing.get_origin(_type) is Union:
+        last_arg = typing.get_args(_type)[-1]
+        # check if NoneType
+        return last_arg is type(None)
+    return False
+
+
+def _unpack_optional(_type):
+    # unpack Optional
+    if not _is_optional(_type):
+        return _type
+
+    args = typing.get_args(_type)[0]
+    if len(args) > 1:
+        warnings.warn(f"Got complex type: {_type}.")
+
+    first_arg = args[0]
+    if first_arg in _primitive_types:
+        #  Optional[int] -> int
+        return first_arg
+
+    origin = typing.get_origin(first_arg)
+    if origin in _container_types:
+        return first_arg
+
+    raise ValueError(f"Got unsupported type: {_type}")
+
+
+def _is_container_type(_type) -> bool:
+    origin = typing.get_origin(_type)
+    return _type in _container_types or origin in _container_types
+
+
 # argument parser
 class ChikaArgumentParser(argparse.ArgumentParser):
     """ This subclass of argparser that generates arguments from dataclasses.
@@ -131,15 +171,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
                 kwargs["help"] = " "
 
             # remove Optional. Optional is Union[..., NoneType]
-            # typing.get_args, typing.get_origin may make it easy
-            type_string = str(field.type)
-            for prim_type in (int, float, str):
-                # Optional[List[int]] -> List[int]
-                if type_string == f"typing.Union[List[{prim_type}], NoneType]":
-                    field_type = List[prim_type]
-                # Optional[int] -> int
-                if type_string == f"typing.Union[{prim_type.__name__}, NoneType]":
-                    field_type = prim_type
+            field_type = _unpack_optional(field.type)
 
             if isinstance(field_type, type) and issubclass(field_type, Enum):
                 kwargs["choices"] = list(field.type)
@@ -151,7 +183,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
                 # foo: bool = True -> --foo makes foo False
                 kwargs["action"] = "store_false" if field.default is True else "store_true"
 
-            elif self._is_type_list_or_tuple(field_type):
+            elif _is_container_type(field_type):
                 if kwargs.get("nargs") is None:
                     kwargs["nargs"] = "+"
                 kwargs["type"] = typing.get_args(field_type)[0]
@@ -380,7 +412,8 @@ class ChikaConfig:
 
 
 # config decorator
-def config(cls=None
+def config(cls=None,
+           is_root: bool = False
            ) -> ChikaConfig:
     """ A wrapper to make ChikaConfig ::
 
@@ -390,6 +423,7 @@ def config(cls=None
 
     Args:
         cls: wrapped class. Class name is expected to be FooConfig, and foo is used as key if this class is used as a child
+        is_root: If True, some `job_id`, `output_dir` will be set
 
     Returns: config in dataclass and ChikaConfig
 
@@ -402,6 +436,9 @@ def config(cls=None
         bases = other_bases if ChikaConfig in other_bases else (ChikaConfig,) + other_bases
         # create cls whose baseclass is ChikaConfig
         cls = types.new_class(cls.__name__, bases, {}, lambda ns: ns.update(cls.__dict__))
+        if is_root:
+            cls.job_id = JOB_ID
+            cls.job_dir = ORIGINAL_PATH
         # make cls to dataclass
         return dataclasses.dataclass(cls)
 
@@ -409,8 +446,8 @@ def config(cls=None
 
 
 # JOB_ID is expected to be a unique such as
-# 0901-122412-558f5a
-JOB_ID = datetime.now().strftime('%Y_%m%d-%H%M%S-') + uuid.uuid4().hex[-6:]
+# 0901_122412_558f5a
+JOB_ID = datetime.now().strftime('%Y_%m%d_%H%M%S_') + uuid.uuid4().hex[-6:]
 ORIGINAL_PATH = Path(".").resolve()
 original_path = ORIGINAL_PATH
 
@@ -452,6 +489,8 @@ def main(cfg_cls: Type[ChikaConfig],
                 job_dir.mkdir(parents=True, exist_ok=True)
                 os.chdir(job_dir)
                 save_as_file("run.yaml", _config.to_dict())
+                if hasattr(_config, "job_dir"):
+                    _config.job_dir = job_dir
             try:
                 return func(_config)
             finally:
