@@ -323,7 +323,7 @@ class ChikaConfig:
                 elif typing.get_origin(ft) in _container_types:
                     # list[str] -> list
                     origin = typing.get_origin(ft)
-                    if origin in _container_types.keys():
+                    if origin in _container_types:
                         origin = _container_types[origin]
                     if value is not None:
                         _state_dict[name] = origin(value)
