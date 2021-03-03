@@ -17,7 +17,7 @@ from numbers import Number
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
-from .utils import (DefaultUntouched, SUPPORTED_SUFFIXES, _container_types, _is_container_type,
+from .utils import (DefaultUntouched, SUPPORTED_SUFFIXES, _container_to_type, _container_types, _is_container_type,
                     _primitive_types,
                     _unpack_optional, is_supported_filetype, load_from_file, save_as_file)
 
@@ -323,8 +323,8 @@ class ChikaConfig:
                 elif typing.get_origin(ft) in _container_types:
                     # list[str] -> list
                     origin = typing.get_origin(ft)
-                    if origin in _container_types:
-                        origin = _container_types[origin]
+                    if origin in _container_to_type.keys():
+                        origin = _container_to_type[origin]
                     if value is not None:
                         _state_dict[name] = origin(value)
                 else:
