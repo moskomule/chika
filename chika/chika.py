@@ -292,9 +292,7 @@ def sequence(*values: Any,
     Returns: sequence with a help message
 
     """
-    meta = {'default': list(values)}
-    if size is not None:
-        meta['nargs'] = size
+    meta = {'default': list(values), 'nargs': "+" if size is None else size}
     if help is not None:
         meta['help'] = help
     return dataclasses.field(default=tuple(values), metadata=meta)
