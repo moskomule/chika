@@ -27,7 +27,7 @@ def test_nested_config():
     b = B(C(1), 3)
     assert b.to_dict() == {"a": {"c": 1}, "b": 3}
     assert B.from_dict({"a": {"c": 1}, "b": 3}) == b
-    assert B.from_dict({"b": 3}, allow_missing=True) == B(C(None), 3)
+    assert B.from_dict({"a": {"c": 1}}, allow_missing=True) == B(C(1), None)
 
 
 def test_inherited_config():
