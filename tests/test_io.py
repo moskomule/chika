@@ -1,4 +1,4 @@
-from chika.chika import is_supported_filetype
+from chika.utils import is_supported_filetype
 
 
 def test_is_supported_filetype():

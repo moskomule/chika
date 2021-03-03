@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import typing
 import warnings
 from pathlib import Path
@@ -101,3 +102,18 @@ def _unpack_optional(_type):
 def _is_container_type(_type) -> bool:
     origin = typing.get_origin(_type)
     return _type in _container_types or origin in _container_types
+
+
+def _get_git_hash() -> typing.Optional[str]:
+    def _decode_bytes(b: bytes) -> str:
+        return b.decode("ascii")[:-1]
+
+    try:
+        is_git_repo = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"],
+                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout
+        if _decode_bytes(is_git_repo) == "true":
+            git_hash = subprocess.run(["git", "rev-parse", "--short", "HEAD"], stdout=subprocess.PIPE).stdout
+            return _decode_bytes(git_hash)
+    except FileNotFoundError:
+        pass
+    return None

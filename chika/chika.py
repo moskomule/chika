@@ -17,7 +17,8 @@ from numbers import Number
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
-from .utils import (DefaultUntouched, SUPPORTED_SUFFIXES, _container_to_type, _container_types, _is_container_type,
+from .utils import (DefaultUntouched, SUPPORTED_SUFFIXES, _container_to_type, _container_types, _get_git_hash,
+                    _is_container_type,
                     _primitive_types,
                     _unpack_optional, is_supported_filetype, load_from_file, save_as_file)
 
@@ -345,7 +346,7 @@ class ChikaConfig:
 # config decorator
 def config(cls=None,
            is_root: bool = False
-           ) -> ChikaConfig:
+           ):
     """ A wrapper to make ChikaConfig ::
 
     @config
@@ -368,8 +369,12 @@ def config(cls=None,
         # create cls whose baseclass is ChikaConfig
         cls = types.new_class(cls.__name__, bases, {}, lambda ns: ns.update(cls.__dict__))
         if is_root:
-            cls.job_id = JOB_ID
-            cls.job_dir = ORIGINAL_PATH
+            cls._job_id = JOB_ID
+            cls._job_dir = ORIGINAL_PATH
+            git_hash = _get_git_hash()
+
+            if git_hash is not None:
+                cls._job_git_hash = git_hash
         # make cls to dataclass
         return dataclasses.dataclass(cls)
 
@@ -418,10 +423,10 @@ def main(cfg_cls: Type[ChikaConfig],
             if change_job_dir:
                 job_dir = Path("outputs") / JOB_ID
                 job_dir.mkdir(parents=True, exist_ok=True)
+                if hasattr(_config, "_job_dir"):
+                    _config._job_dir = job_dir
                 os.chdir(job_dir)
                 save_as_file("run.yaml", _config.to_dict())
-                if hasattr(_config, "job_dir"):
-                    _config.job_dir = job_dir
             try:
                 return func(_config)
             finally:
