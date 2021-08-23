@@ -45,7 +45,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
     """
 
     def __init__(self,
-                 dataclass_type: Type[ChikaConfig],
+                 dataclass_type: Type[ChikaConfig] | ChikaConfig,
                  **kwargs
                  ) -> None:
         if kwargs.get("formatter_class") is None:
@@ -58,7 +58,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
         self.add_dataclass_arguments(self.dataclass_type)
 
     def add_dataclass_arguments(self,
-                                dtype: Type[ChikaConfig] or ChikaConfig,
+                                dtype: Type[ChikaConfig] | ChikaConfig,
                                 prefix: Optional[str] = None,
                                 nest_level: int = 0
                                 ) -> None:
@@ -394,7 +394,7 @@ def resolve_original_path(path: str or Path
 
 
 # entry point
-def main(cfg_cls: Type[ChikaConfig],
+def main(cfg_cls: Type[ChikaConfig] | ChikaConfig,
          strict: bool = False,
          change_job_dir: bool = False,
          ) -> Callable:
