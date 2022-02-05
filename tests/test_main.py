@@ -67,7 +67,7 @@ def test_main_cd():
 def test_main_job_id():
     @config(is_root=True)
     class C:
-        a: int
+        a: int = 1
 
     @main(C)
     def f(cfg):
