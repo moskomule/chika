@@ -40,10 +40,10 @@ def test_main():
 
     assert f() == 2
 
-    with _clean_argv(['--c.a', 2]):
+    with _clean_argv(['--c.a', '2']):
         assert f() == 3
 
-    with _clean_argv(['--d', 2]):
+    with _clean_argv(['--d', '2']):
         assert f() == 3
 
 
