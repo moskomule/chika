@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import inspect
-import json
 import math
 import os
 import types
@@ -18,7 +17,10 @@ from numbers import Number
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
-import yaml
+from .utils import (DefaultUntouched, SUPPORTED_SUFFIXES, _container_to_type, _container_types, _get_git_hash,
+                    _is_container_type,
+                    _primitive_types,
+                    _unpack_optional, is_supported_filetype, load_from_file, save_as_file)
 
 __all__ = ["ChikaArgumentParser",
            # functions for ChikaConfig
@@ -30,56 +32,6 @@ __all__ = ["ChikaArgumentParser",
            # decorators
            "config",
            "main"]
-
-# fileio
-JSON_SUFFIXES = {".json"}
-YAML_SUFFIXES = {".yaml", ".yml"}
-SUPPORTED_SUFFIXES = (JSON_SUFFIXES | YAML_SUFFIXES)
-
-
-def is_supported_filetype(file: str
-                          ) -> bool:
-    return Path(file).suffix in SUPPORTED_SUFFIXES
-
-
-def load_from_file(file: str
-                   ) -> Dict[str, Any]:
-    file = Path(file)
-    if not file.exists():
-        raise FileNotFoundError(f"{file} not found")
-    if not is_supported_filetype(file):
-        raise RuntimeError(f"Unsupported file type with a suffix of {file.suffix}")
-
-    with file.open() as f:
-        if file.suffix in JSON_SUFFIXES:
-            return json.load(f)
-        elif file.suffix in YAML_SUFFIXES:
-            return yaml.safe_load(f)
-
-
-def save_as_file(file: str,
-                 state_dict: Dict[str, Any]
-                 ) -> None:
-    file = Path(file)
-    if not is_supported_filetype(file):
-        raise RuntimeError(f"Unsupported file type with a suffix of {file.suffix}")
-    file.parent.mkdir(exist_ok=True, parents=True)
-    with file.open("w") as f:
-        if file.suffix in JSON_SUFFIXES:
-            json.dump(state_dict, f)
-        elif file.suffix in YAML_SUFFIXES:
-            yaml.safe_dump(state_dict, f)
-
-
-# mark default values
-class _DefaultUntouched(object):
-    # mark as untouched default
-    def __init__(self,
-                 value: Any):
-        self.value = value
-
-    def __repr__(self):
-        return self.value.__repr__()
 
 
 # argument parser
@@ -93,7 +45,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
     """
 
     def __init__(self,
-                 dataclass_type: Type[ChikaConfig],
+                 dataclass_type: Type[ChikaConfig] | ChikaConfig,
                  **kwargs
                  ) -> None:
         if kwargs.get("formatter_class") is None:
@@ -106,7 +58,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
         self.add_dataclass_arguments(self.dataclass_type)
 
     def add_dataclass_arguments(self,
-                                dtype: Type[ChikaConfig] or ChikaConfig,
+                                dtype: Type[ChikaConfig] | ChikaConfig,
                                 prefix: Optional[str] = None,
                                 nest_level: int = 0
                                 ) -> None:
@@ -131,18 +83,10 @@ class ChikaArgumentParser(argparse.ArgumentParser):
                 kwargs["help"] = " "
 
             # remove Optional. Optional is Union[..., NoneType]
-            # typing.get_args, typing.get_origin may make it easy
-            type_string = str(field.type)
-            for prim_type in (int, float, str):
-                # Optional[List[int]] -> List[int]
-                if type_string == f"typing.Union[List[{prim_type}], NoneType]":
-                    field_type = List[prim_type]
-                # Optional[int] -> int
-                if type_string == f"typing.Union[{prim_type.__name__}, NoneType]":
-                    field_type = prim_type
+            field_type = _unpack_optional(field.type)
 
             if isinstance(field_type, type) and issubclass(field_type, Enum):
-                kwargs["choices"] = list(field.type)
+                kwargs["choices"] = [en.value for en in field_type]
                 kwargs["type"] = field_type
                 if kwargs.get("required") is None:
                     kwargs["default"] = field.default
@@ -151,7 +95,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
                 # foo: bool = True -> --foo makes foo False
                 kwargs["action"] = "store_false" if field.default is True else "store_true"
 
-            elif self._is_type_list_or_tuple(field_type):
+            elif _is_container_type(field_type):
                 if kwargs.get("nargs") is None:
                     kwargs["nargs"] = "+"
                 kwargs["type"] = typing.get_args(field_type)[0]
@@ -183,12 +127,12 @@ class ChikaArgumentParser(argparse.ArgumentParser):
                         kwargs["required"] = True
                     else:
                         # when nested, mark the value
-                        kwargs["default"] = _DefaultUntouched(None)
+                        kwargs["default"] = DefaultUntouched(None)
                     kwargs["help"] += " (required)"
                 elif field.default is not dataclasses.MISSING:
-                    kwargs["default"] = field.default if nest_level == 0 else _DefaultUntouched(field.default)
+                    kwargs["default"] = field.default if nest_level == 0 else DefaultUntouched(field.default)
                 elif nest_level > 0 and kwargs.get("default") is not None:
-                    kwargs["default"] = _DefaultUntouched(kwargs["default"])
+                    kwargs["default"] = DefaultUntouched(kwargs["default"])
 
             self.add_argument(field_name, **kwargs)
 
@@ -208,7 +152,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
                         if unflatten_dict[k].get(_k) is not None:
                             old = unflatten_dict[k][_k]
                             # if user changes value, use that value, otherwise load from file
-                            unflatten_dict[k][_k] = _v if isinstance(old, _DefaultUntouched) else old
+                            unflatten_dict[k][_k] = _v if isinstance(old, DefaultUntouched) else old
                 else:
                     raise RuntimeError(f"Unsupported filetype, config file must be one of {SUPPORTED_SUFFIXES}")
             elif "." in k:
@@ -218,10 +162,10 @@ class ChikaArgumentParser(argparse.ArgumentParser):
             else:
                 unflatten_dict[k] = v
 
-        def remove_default_untouched(d: Dict):
+        def remove_default_untouched(d):
             _d = {}
             for k, v in d.items():
-                if isinstance(v, _DefaultUntouched):
+                if isinstance(v, DefaultUntouched):
                     _d[k] = v.value
                 elif isinstance(v, dict):
                     _d[k] = remove_default_untouched(v)
@@ -361,17 +305,37 @@ class ChikaConfig:
 
     @classmethod
     def from_dict(cls,
-                  state_dict: Dict[str, Any]
+                  state_dict: Dict[str, Any],
+                  allow_missing: bool = False
                   ) -> ChikaConfig:
         _state_dict = {}
-        field_type = typing.get_type_hints(cls)
+        field_type_hints = typing.get_type_hints(cls)
         for field in dataclasses.fields(cls):
             name = field.name
-            if dataclasses.is_dataclass(field_type[name]):
+            if dataclasses.is_dataclass(field_type_hints[name]):
                 # ChikaConfig
-                _state_dict[name] = field_type[name].from_dict(state_dict[name])
+                _state_dict[name] = field_type_hints[name].from_dict(state_dict[name])
+            elif name in state_dict.keys():
+                value = state_dict[name]
+                ft = _unpack_optional(field.type)
+                if ft in _primitive_types:
+                    if value is not None:
+                        _state_dict[name] = ft(value)
+                elif typing.get_origin(ft) in _container_types:
+                    # list[str] -> list
+                    origin = typing.get_origin(ft)
+                    if origin in _container_to_type.keys():
+                        origin = _container_to_type[origin]
+                    if value is not None:
+                        _state_dict[name] = origin(value)
+                else:
+                    _state_dict[name] = state_dict[name]
             else:
-                _state_dict[name] = state_dict[name]
+                if allow_missing:
+                    _state_dict[name] = None
+                else:
+                    raise ValueError(f"key={name} is expected, but could not be found")
+
         return cls(**_state_dict)
 
     def __repr__(self):
@@ -380,8 +344,9 @@ class ChikaConfig:
 
 
 # config decorator
-def config(cls=None
-           ) -> ChikaConfig:
+def config(cls=None,
+           is_root: bool = False
+           ) -> Type[ChikaConfig]:
     """ A wrapper to make ChikaConfig ::
 
     @config
@@ -390,6 +355,7 @@ def config(cls=None
 
     Args:
         cls: wrapped class. Class name is expected to be FooConfig, and foo is used as key if this class is used as a child
+        is_root: If True, some `job_id`, `output_dir` will be set
 
     Returns: config in dataclass and ChikaConfig
 
@@ -402,6 +368,13 @@ def config(cls=None
         bases = other_bases if ChikaConfig in other_bases else (ChikaConfig,) + other_bases
         # create cls whose baseclass is ChikaConfig
         cls = types.new_class(cls.__name__, bases, {}, lambda ns: ns.update(cls.__dict__))
+        if is_root:
+            cls._job_id = JOB_ID
+            cls._job_dir = ORIGINAL_PATH
+            git_hash = _get_git_hash()
+
+            if git_hash is not None:
+                cls._job_git_hash = git_hash
         # make cls to dataclass
         return dataclasses.dataclass(cls)
 
@@ -409,8 +382,8 @@ def config(cls=None
 
 
 # JOB_ID is expected to be a unique such as
-# 0901-122412-558f5a
-JOB_ID = datetime.now().strftime('%Y_%m%d-%H%M%S-') + uuid.uuid4().hex[-6:]
+# 0901_122412_558f5a
+JOB_ID = datetime.now().strftime('%Y_%m%d_%H%M%S_') + uuid.uuid4().hex[-6:]
 ORIGINAL_PATH = Path(".").resolve()
 original_path = ORIGINAL_PATH
 
@@ -421,7 +394,7 @@ def resolve_original_path(path: str or Path
 
 
 # entry point
-def main(cfg_cls: Type[ChikaConfig],
+def main(cfg_cls: Type[ChikaConfig] | ChikaConfig,
          strict: bool = False,
          change_job_dir: bool = False,
          ) -> Callable:
@@ -450,6 +423,8 @@ def main(cfg_cls: Type[ChikaConfig],
             if change_job_dir:
                 job_dir = Path("outputs") / JOB_ID
                 job_dir.mkdir(parents=True, exist_ok=True)
+                if hasattr(_config, "_job_dir"):
+                    _config._job_dir = job_dir
                 os.chdir(job_dir)
                 save_as_file("run.yaml", _config.to_dict())
             try:

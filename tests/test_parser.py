@@ -1,3 +1,4 @@
+import enum
 import json
 from typing import List
 
@@ -203,3 +204,23 @@ def test_bounded():
 
     r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
     assert r.a == 1
+
+
+def test_enum():
+    class E(str, enum.Enum):
+        a = 'a'
+        b = 'b'
+
+    @config
+    class A:
+        a: E = E.a
+
+    @config
+    class B:
+        a: A
+
+    r, _ = ChikaArgumentParser(A).parse_args_into_dataclass([])
+    assert r.a == E.a
+
+    r, _ = ChikaArgumentParser(B).parse_args_into_dataclass([])
+    assert r.a.a == E.a
