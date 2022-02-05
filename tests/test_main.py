@@ -31,7 +31,7 @@ def test_main():
 
 
 def test_main_enum():
-    class A(enum.Enum):
+    class A(str, enum.Enum):
         a = "a"
         b = "b"
 
