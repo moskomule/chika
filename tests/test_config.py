@@ -57,4 +57,4 @@ def test_enum():
         a: A = A.a
 
     b = B()
-    assert b.to_dict()['a'] == A.a
+    assert b.to_dict()['a'] == 'a'

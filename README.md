@@ -18,29 +18,39 @@ or
 pip install -U git+https://github.com/moskomule/chika
 ```
 
-
 ## Usage
 
 Write typed configurations using `chika.config`, which depends on `dataclass`.
 
 ```python
 # main.py
+import enum
 import chika
+
 
 @chika.config
 class ModelConfig:
     name: str = chika.choices('resnet', 'densenet')
     depth: int = 10
 
+
 @chika.config
 class DataConfig:
     # values that needs to be specified
     name: str = chika.required(help="name of dataset")
 
+
+class Optims(str, enum.Enum):
+    # currently, only StrEnum is supported
+    sgd = "sgd"
+    adam = "adam"
+
+
 @chika.config
 class OptimConfig:
-    # 
-    steps: List[int] = chika.sequence(100, 150)
+    name: Optims = Optims.sgd
+    steps: list[int] = chika.sequence(100, 150)
+
 
 @chika.config
 class BaseConfig:
@@ -115,20 +125,28 @@ For `chika.Config`, the following functions are prepared:
 
 ```python
 def with_help(default, help): ...
+
+
 # add help message
 def choices(*values, help): ...
+
+
 # add candidates that should be selected
 def sequence(*values, size, help): ...
+
+
 # add a list. size can be specified
 def required(*, help): ...
+
+
 # add a required value
-def bounded(default, _from, _to, * help): ...
+def bounded(default, _from, _to, *help): ...
 # add boundaries
 ```
 
 ### Working Directory
 
-`change_job_dir=True` creates a unique directory for each run. 
+`change_job_dir=True` creates a unique directory for each run.
 
 ```python
 @chika.main(BaseConfig, change_job_dir=True)
@@ -147,14 +165,14 @@ def main(cfg):
 
 ```python
 from chika import ChikaConfig
+
 cfg = ChikaConfig.from_dict(...)
 
 cfg.to_dict()
 # {"model": {"name": "resnet", "zero_init": True, ...}, ...}
 ```
 
-
 ### Known issues and ToDos
 
-- [ ] Configs cannot be nested twice or more than twice. `Config(Config(...))` is valid, but `Config(Config(Config(...)))` is invalid.
-- [ ] Configs loaded from files are not validated.
+- [ ] Configs cannot be nested twice or more than twice. `Config(Config(...))` is valid,
+  but `Config(Config(Config(...)))` is invalid.

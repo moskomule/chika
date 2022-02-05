@@ -3,6 +3,8 @@ import enum
 import sys
 from pathlib import Path
 
+import pytest
+
 from chika import config, main, original_path, resolve_original_path
 from chika.utils import load_from_file
 
@@ -15,12 +17,13 @@ def _clean_argv(new):
     sys.argv = original
 
 
-def test_main():
+@pytest.mark.parametrize("cd", [True, False])
+def test_main(cd):
     @config
     class C:
         a: int = 1
 
-    @main(C)
+    @main(C, change_job_dir=cd)
     def f(cfg):
         return cfg.a + 1
 
@@ -29,8 +32,26 @@ def test_main():
     with _clean_argv(['--a', '2']):
         assert f() == 3
 
+    @config
+    class D:
+        c: C
+        d: int = 1
 
-def test_main_enum():
+    @main(D, change_job_dir=cd)
+    def f(cfg):
+        return cfg.c.a + cfg.d
+
+    assert f() == 2
+
+    with _clean_argv(['--c.a', '2']):
+        assert f() == 3
+
+    with _clean_argv(['--d', '2']):
+        assert f() == 3
+
+
+@pytest.mark.parametrize("cd", [True, False])
+def test_main_enum(cd):
     class A(str, enum.Enum):
         a = "a"
         b = "b"
@@ -39,7 +60,7 @@ def test_main_enum():
     class C:
         a: A = A.a
 
-    @main(C)
+    @main(C, change_job_dir=cd)
     def f(cfg):
         return cfg.a
 
@@ -64,12 +85,13 @@ def test_main_cd():
         assert load_from_file(working_dir / "run.yaml") == {"a": 2}
 
 
-def test_main_job_id():
+@pytest.mark.parametrize("cd", [True, False])
+def test_main_job_id(cd):
     @config(is_root=True)
     class C:
         a: int = 1
 
-    @main(C)
+    @main(C, change_job_dir=cd)
     def f(cfg):
         assert hasattr(cfg, "_job_dir")
 
