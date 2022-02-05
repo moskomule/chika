@@ -17,7 +17,7 @@ def _clean_argv(new):
     sys.argv = original
 
 
-@pytest.mark.parametrize(["cd"], [True, False])
+@pytest.mark.parametrize("cd", [True, False])
 def test_main(cd):
     @config
     class C:
@@ -50,7 +50,7 @@ def test_main(cd):
         assert f() == 3
 
 
-@pytest.mark.parametrize(["cd"], [True, False])
+@pytest.mark.parametrize("cd", [True, False])
 def test_main_enum(cd):
     class A(str, enum.Enum):
         a = "a"
@@ -85,7 +85,7 @@ def test_main_cd():
         assert load_from_file(working_dir / "run.yaml") == {"a": 2}
 
 
-@pytest.mark.parametrize(["cd"], [True, False])
+@pytest.mark.parametrize("cd", [True, False])
 def test_main_job_id(cd):
     @config(is_root=True)
     class C:
