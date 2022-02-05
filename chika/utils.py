@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 import json
 import subprocess
 import typing
@@ -103,6 +104,20 @@ def _is_container_type(_type) -> bool:
     origin = typing.get_origin(_type)
     return _type in _container_types or origin in _container_types
 
+
+# handle enums
+def _enum_to_value(_dict: dict):
+    out = {}
+    for k, v in _dict.items():
+        if isinstance(v, dict):
+            v = _enum_to_value(v)
+        elif isinstance(v, enum.Enum):
+            v = v.value
+        out[k] = v
+    return out
+
+
+# get git info
 
 def _get_git_hash() -> typing.Optional[str]:
     def _decode_bytes(b: bytes) -> str:

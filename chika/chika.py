@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import enum
 import inspect
 import math
 import os
@@ -18,7 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 from .utils import (DefaultUntouched, SUPPORTED_SUFFIXES, _container_to_type, _container_types, _get_git_hash,
-                    _is_container_type,
+                    _is_container_type, _enum_to_value,
                     _primitive_types,
                     _unpack_optional, is_supported_filetype, load_from_file, save_as_file)
 
@@ -301,7 +302,7 @@ class ChikaConfig:
     # mixin
 
     def to_dict(self):
-        return dataclasses.asdict(self)
+        return _enum_to_value(dataclasses.asdict(self))
 
     @classmethod
     def from_dict(cls,
@@ -315,6 +316,8 @@ class ChikaConfig:
             if dataclasses.is_dataclass(field_type_hints[name]):
                 # ChikaConfig
                 _state_dict[name] = field_type_hints[name].from_dict(state_dict[name])
+            elif isinstance(field_type_hints[name], enum.Enum):
+                _state_dict[name] = field_type_hints[name](state_dict[name])
             elif name in state_dict.keys():
                 value = state_dict[name]
                 ft = _unpack_optional(field.type)
