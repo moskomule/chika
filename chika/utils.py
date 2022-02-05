@@ -20,7 +20,7 @@ def is_supported_filetype(file: str
     return Path(file).suffix in SUPPORTED_SUFFIXES
 
 
-def load_from_file(file: str
+def load_from_file(file: str | Path
                    ) -> Dict[str, Any]:
     file = Path(file)
     if not file.exists():

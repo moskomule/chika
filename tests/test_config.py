@@ -1,3 +1,5 @@
+import enum
+
 from chika.chika import config
 
 
@@ -43,3 +45,16 @@ def test_inherited_config():
 
     b = B()
     assert b.to_dict() == {"a": 2, "b": 2, "c": 3}
+
+
+def test_enum():
+    class A(enum.Enum):
+        a = "a"
+        b = "b"
+
+    @config
+    class B:
+        a: A = A.a
+
+    b = B()
+    assert b.to_dict()['a'] == A.a

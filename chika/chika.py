@@ -86,7 +86,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
             field_type = _unpack_optional(field.type)
 
             if isinstance(field_type, type) and issubclass(field_type, Enum):
-                kwargs["choices"] = list(field.type)
+                kwargs["choices"] = [en.value for en in field_type]
                 kwargs["type"] = field_type
                 if kwargs.get("required") is None:
                     kwargs["default"] = field.default
@@ -346,7 +346,7 @@ class ChikaConfig:
 # config decorator
 def config(cls=None,
            is_root: bool = False
-           ):
+           ) -> Type[ChikaConfig]:
     """ A wrapper to make ChikaConfig ::
 
     @config

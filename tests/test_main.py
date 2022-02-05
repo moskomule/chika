@@ -1,3 +1,4 @@
+import enum
 import sys
 from pathlib import Path
 
@@ -19,6 +20,26 @@ def test_main():
     sys.argv += ["--a", "2"]
 
     assert f() == 3
+
+
+def test_main_enum():
+    class A(enum.Enum):
+        a = "a"
+        b = "b"
+
+    @config
+    class C:
+        a: A = A.a
+
+    @main(C)
+    def f(cfg):
+        return cfg.a
+
+    assert f() == A.a
+
+    sys.argv += ["--a", "b"]
+
+    assert f() == A.b
 
 
 def test_main_cd():
