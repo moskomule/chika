@@ -18,7 +18,7 @@ def test_main():
 
     assert f() == 2
 
-    with patch.object(sys, 'argv', ['--a', '2']):
+    with patch.object(sys, 'argv', ['--a', '3']):
         # see https://stackoverflow.com/questions/18668947/how-do-i-set-sys-argv-so-i-can-unit-test-it
         assert f() == 3
 
@@ -51,11 +51,10 @@ def test_main_cd():
     def f(cfg):
         return resolve_original_path(f"{cfg.a}.pt"), Path(".").resolve()
 
-    sys.argv += ["--a", "2"]
-
-    resolved_path, working_dir = f()
-    assert resolved_path == (original_path / "2.pt")
-    assert load_from_file(working_dir / "run.yaml") == {"a": 2}
+    with patch.object(sys, 'argv', ['--a', '2']):
+        resolved_path, working_dir = f()
+        assert resolved_path == (original_path / "2.pt")
+        assert load_from_file(working_dir / "run.yaml") == {"a": 2}
 
 
 def test_main_job_id():
