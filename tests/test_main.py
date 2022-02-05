@@ -1,6 +1,7 @@
 import enum
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 from chika import config, main, original_path, resolve_original_path
 from chika.utils import load_from_file
@@ -17,9 +18,9 @@ def test_main():
 
     assert f() == 2
 
-    sys.argv += ["--a", "2"]
-
-    assert f() == 3
+    with patch.object(sys, 'argv', ['--a', '2']):
+        # see https://stackoverflow.com/questions/18668947/how-do-i-set-sys-argv-so-i-can-unit-test-it
+        assert f() == 3
 
 
 def test_main_enum():
@@ -37,9 +38,8 @@ def test_main_enum():
 
     assert f() == A.a
 
-    sys.argv += ["--a", "b"]
-
-    assert f() == A.b
+    with patch.object(sys, 'argv', ['--a', 'b']):
+        assert f() == A.b
 
 
 def test_main_cd():
