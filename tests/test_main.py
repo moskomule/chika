@@ -20,11 +20,6 @@ def test_main():
     class C:
         a: int = 1
 
-    @config
-    class D:
-        c: C
-        d: int = 1
-
     @main(C)
     def f(cfg):
         return cfg.a + 1
@@ -33,6 +28,11 @@ def test_main():
 
     with _clean_argv(['--a', '2']):
         assert f() == 3
+
+    @config
+    class D:
+        c: C
+        d: int = 1
 
     @main(D)
     def f(cfg):

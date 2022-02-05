@@ -74,6 +74,9 @@ class ChikaArgumentParser(argparse.ArgumentParser):
             # __annotation__ changes type hint to str, so field.type might be str
             # field_type is actual type hint
             field_type = name_to_type[field.name]
+            # remove Optional. Optional is Union[..., NoneType]
+            field_type = _unpack_optional(field_type)
+
             # if dtype is parent, --config
             # if dtype is child, --main.subconfig
             field_name = f"--{field.name}" if prefix is None else f"--{prefix}.{field.name}"
@@ -81,9 +84,6 @@ class ChikaArgumentParser(argparse.ArgumentParser):
             if kwargs.get("help") is None:
                 # to show default values
                 kwargs["help"] = " "
-
-            # remove Optional. Optional is Union[..., NoneType]
-            field_type = _unpack_optional(field.type)
 
             if isinstance(field_type, type) and issubclass(field_type, Enum):
                 kwargs["choices"] = [en.value for en in field_type]
