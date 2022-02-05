@@ -1,10 +1,18 @@
+import contextlib
 import enum
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 from chika import config, main, original_path, resolve_original_path
 from chika.utils import load_from_file
+
+
+@contextlib.contextmanager
+def _clean_argv(new):
+    original = sys.argv.copy()
+    sys.argv += new
+    yield
+    sys.argv = original
 
 
 def test_main():
@@ -18,8 +26,7 @@ def test_main():
 
     assert f() == 2
 
-    with patch.object(sys, 'argv', ['--a', '3']):
-        # see https://stackoverflow.com/questions/18668947/how-do-i-set-sys-argv-so-i-can-unit-test-it
+    with _clean_argv(['--a', '2']):
         assert f() == 3
 
 
@@ -38,7 +45,7 @@ def test_main_enum():
 
     assert f() == A.a
 
-    with patch.object(sys, 'argv', ['--a', 'b']):
+    with _clean_argv(['--a', 'b']):
         assert f() == A.b
 
 
@@ -51,7 +58,7 @@ def test_main_cd():
     def f(cfg):
         return resolve_original_path(f"{cfg.a}.pt"), Path(".").resolve()
 
-    with patch.object(sys, 'argv', ['--a', '2']):
+    with _clean_argv(['--a', '2']):
         resolved_path, working_dir = f()
         assert resolved_path == (original_path / "2.pt")
         assert load_from_file(working_dir / "run.yaml") == {"a": 2}
