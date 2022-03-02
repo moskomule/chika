@@ -85,6 +85,20 @@ def test_main_cd():
         assert load_from_file(working_dir / "run.yaml") == {"a": 2}
 
 
+def test_main_cd2():
+    @config
+    class C:
+        a: int
+
+    @main(C, job_dir_name="outputs2")
+    def f(cfg):
+        return Path(".").resolve()
+
+    with _clean_argv(['--a', '2']):
+        resolved_path, working_dir = f()
+        assert working_dir.stem == 'outputs2'
+
+
 @pytest.mark.parametrize("cd", [True, False])
 def test_main_job_id(cd):
     @config(is_root=True)

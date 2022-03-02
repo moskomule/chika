@@ -425,7 +425,7 @@ def main(cfg_cls: Type[ChikaConfig] | ChikaConfig,
                 else:
                     warnings.warn(message)
 
-            if change_job_dir:
+            if change_job_dir or job_dir_name is not None:
                 job_dir = job_dir_name or "outputs"
                 job_dir = Path(job_dir) / JOB_ID
                 job_dir.mkdir(parents=True, exist_ok=True)
