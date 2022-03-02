@@ -95,7 +95,7 @@ def test_main_cd2():
         return Path(".").resolve()
 
     with _clean_argv(['--a', '2']):
-        resolved_path, working_dir = f()
+        working_dir = f()
         assert working_dir.stem == 'outputs2'
 
 
