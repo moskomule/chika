@@ -400,6 +400,7 @@ def resolve_original_path(path: str or Path
 def main(cfg_cls: Type[ChikaConfig] | ChikaConfig,
          strict: bool = False,
          change_job_dir: bool = False,
+         job_dir_name: str = None
          ) -> Callable:
     """ Wrapper of the main function
 
@@ -407,6 +408,7 @@ def main(cfg_cls: Type[ChikaConfig] | ChikaConfig,
         cfg_cls: ChikaConfig
         strict: check if unspecified arguments exist. If True and unspecified arguments exist, raise ValueError
         change_job_dir: specify if a job specific current directory is used
+        job_dir_name: Name of the job directory. 'outputs' by default
 
     Returns: returned value of the wrapped function
 
@@ -424,7 +426,8 @@ def main(cfg_cls: Type[ChikaConfig] | ChikaConfig,
                     warnings.warn(message)
 
             if change_job_dir:
-                job_dir = Path("outputs") / JOB_ID
+                job_dir = job_dir_name or "outputs"
+                job_dir = Path(job_dir) / JOB_ID
                 job_dir.mkdir(parents=True, exist_ok=True)
                 if hasattr(_config, "_job_dir"):
                     _config._job_dir = job_dir

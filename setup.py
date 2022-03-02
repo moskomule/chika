@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="chika",
-    version="0.0.8",
+    version="0.1.0",
     description="chika: a dataclass-based simple and easy config tool",
     author="Ryuichiro Hataya",
     url="https://github.com/moskomule/chika",
