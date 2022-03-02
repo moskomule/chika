@@ -96,7 +96,7 @@ def test_main_cd2():
 
     with _clean_argv(['--a', '2']):
         working_dir = f()
-        assert working_dir.stem == 'outputs2'
+        assert working_dir.parent.stem == 'outputs2'
 
 
 @pytest.mark.parametrize("cd", [True, False])
