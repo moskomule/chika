@@ -114,11 +114,18 @@ python main.py -h
 
 Child configs can be updated via YAML or JSON files.
 
+An example of YAML file (e.g. `config/densenet.yaml`)
 ```yaml
-# config/densenet.yaml
-model:
-  name: densenet
-  depth: 12 
+name: densenet
+depth: 12 
+```
+
+An example of JSON file (e.g. `config/densenet.json`)
+```json
+{
+  "name": "densenet",
+  "depth": 12
+}
 ```
 
 For `chika.Config`, the following functions are prepared:
