@@ -1,31 +1,27 @@
 name: pytest
 
-on: [ push, pull_request ]
+on: [ "push" ]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, 'skip test')"
-
-    strategy:
-      matrix:
-        python: [ '3.9', '3.10' ]
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - uses: actions/cache@v3
+        id: cache
         with:
-          python-version: ${{ matrix.python }}
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
 
-      - name: install dependencies
-        run: |
-          python -m venv venv
-          . venv/bin/activate
-          pip install -U pytest
-          pip install -U .
+      - name: setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-      - name: run test
+      - name: test
         run: |
-          . venv/bin/activate
-          pytest
+          pip install hatch
+          hatch run tests:pytest
