@@ -26,7 +26,7 @@ dependencies = [
 Homepage = "https://github.com/moskomule/chika"
 
 [tool.hatch.version]
-path = "chika/__init__.py"
+path = "chika/__about__.py"
 
 [tool.hatch.envs.tests]
 dependencies = [
