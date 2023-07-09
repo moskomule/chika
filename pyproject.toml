@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "chika"
+dynamic = ["version"]
+description = "chika: a dataclass-based simple and easy config tool"
+readme = "README.md"
+license = ""
+requires-python = ">=3.10"
+authors = [
+    { name = "Ryuichiro Hataya" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+]
+dependencies = [
+    "pyyaml",
+]
+
+[project.urls]
+Homepage = "https://github.com/moskomule/chika"
+
+[tool.hatch.version]
+path = "chika/__about__.py"
+
+[tool.hatch.envs.tests]
+dependencies = [
+    "pytest",
+]
+
+[[tool.hatch.envs.tests.matrix]]
+python = ["310", "311"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/chika",
+]

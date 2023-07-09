@@ -4,7 +4,7 @@
 
 ## Requirements
 
-* Python>=3.9 (`typing.get_*` requires Python3.8 or higher)
+* Python>=3.10
 
 ## Installation
 
