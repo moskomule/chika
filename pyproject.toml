@@ -34,7 +34,7 @@ dependencies = [
 ]
 
 [[tool.hatch.envs.tests.matrix]]
-python = ["310", ]
+python = ["310", "311"]
 
 [tool.hatch.build.targets.sdist]
 include = [
