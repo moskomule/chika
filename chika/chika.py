@@ -11,17 +11,17 @@ import typing
 import uuid
 import warnings
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
 from functools import wraps
 from numbers import Number
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+from typing import Any
 
-from .utils import (DefaultUntouched, SUPPORTED_SUFFIXES, _container_to_type, _container_types, _get_git_hash,
-                    _is_container_type, _enum_to_value,
-                    _primitive_types,
-                    _unpack_optional, is_supported_filetype, load_from_file, save_as_file)
+from .utils import (DefaultUntouched, SUPPORTED_SUFFIXES, _container_to_type, _container_types, _enum_to_value,
+                    _get_git_hash, _is_container_type, _primitive_types, _unpack_optional, is_supported_filetype,
+                    load_from_file, save_as_file)
 
 __all__ = ["ChikaArgumentParser",
            # functions for ChikaConfig
@@ -42,25 +42,18 @@ class ChikaArgumentParser(argparse.ArgumentParser):
 
      Args:
          dataclass_type: The top-level config class
-         kwargs: kwargs for ArgumentParser
     """
 
     def __init__(self,
-                 dataclass_type: Type[ChikaConfig] | ChikaConfig,
-                 **kwargs
+                 dataclass_type: type[ChikaConfig] | ChikaConfig,
                  ) -> None:
-        if kwargs.get("formatter_class") is None:
-            # help will show default values
-            kwargs["formatter_class"] = argparse.ArgumentDefaultsHelpFormatter
-        if kwargs.get("allow_abbrev") is None:
-            kwargs["allow_abbrev"] = False
-        super().__init__(**kwargs)
+        super().__init__(formatter_class=argparse.ArgumentDefaultsHelpFormatter, allow_abbrev=False)
+        self.add_dataclass_arguments(dataclass_type)
         self.dataclass_type = dataclass_type
-        self.add_dataclass_arguments(self.dataclass_type)
 
     def add_dataclass_arguments(self,
-                                dtype: Type[ChikaConfig] | ChikaConfig,
-                                prefix: Optional[str] = None,
+                                dtype: type[ChikaConfig] | ChikaConfig,
+                                prefix: str = None,
                                 nest_level: int = 0
                                 ) -> None:
         name_to_type = typing.get_type_hints(dtype)
@@ -81,10 +74,10 @@ class ChikaArgumentParser(argparse.ArgumentParser):
             # if dtype is parent, --config
             # if dtype is child, --main.subconfig
             field_name = f"--{field.name}" if prefix is None else f"--{prefix}.{field.name}"
-            kwargs: Dict[str, Any] = field.metadata.copy()
+            kwargs: dict[str, Any] = field.metadata.copy()
             if kwargs.get("help") is None:
                 # to show default values
-                kwargs["help"] = " "
+                kwargs["help"] = "|"
 
             if isinstance(field_type, type) and issubclass(field_type, Enum):
                 kwargs["choices"] = [en.value for en in field_type]
@@ -92,7 +85,7 @@ class ChikaArgumentParser(argparse.ArgumentParser):
                 if kwargs.get("required") is None:
                     kwargs["default"] = field.default
 
-            elif field_type is bool or field_type is Optional[bool]:
+            elif field_type is bool:
                 # foo: bool = True -> --foo makes foo False
                 kwargs["action"] = "store_false" if field.default is True else "store_true"
 
@@ -138,8 +131,8 @@ class ChikaArgumentParser(argparse.ArgumentParser):
             self.add_argument(field_name, **kwargs)
 
     def parse_args_into_dataclass(self,
-                                  args: Optional[List[str]] = None,
-                                  ) -> [ChikaConfig, Any]:
+                                  args: list[str] = None,
+                                  ) -> tuple[ChikaConfig, Any]:
         namespace, remaining_args = self.parse_known_args(args=args)
         name_to_type = typing.get_type_hints(self.dataclass_type)
         unflatten_dict = defaultdict(dict)
@@ -177,16 +170,11 @@ class ChikaArgumentParser(argparse.ArgumentParser):
         dclass = self.dataclass_type.from_dict(remove_default_untouched(unflatten_dict))
         return dclass, remaining_args
 
-    @staticmethod
-    def _is_type_list_or_tuple(type: Type):
-        origin = typing.get_origin(type)
-        return origin is not None and issubclass(origin, (List, Tuple))
-
 
 # configs
 
 def with_help(default: Any, *,
-              help: Optional[str] = None
+              help: str = None
               ) -> dataclasses.Field:
     """ Add help to ChikaConfig, which is used in ArgumentParser.
 
@@ -205,7 +193,7 @@ def with_help(default: Any, *,
 
 
 def choices(*values: Any,
-            help: Optional[str] = None
+            help: str = None
             ) -> dataclasses.Field:
     """ Add choices to ChikaConfig, which is used in ArgumentParser. The first value is used as the default value.
 
@@ -224,8 +212,8 @@ def choices(*values: Any,
 
 
 def sequence(*values: Any,
-             size: Optional[int] = None,
-             help: Optional[str] = None
+             size: int = None,
+             help: help = None
              ) -> dataclasses.Field:
     """ Add a default value of list, which is invalid in dataclass.
 
@@ -243,7 +231,7 @@ def sequence(*values: Any,
     return dataclasses.field(default=tuple(values), metadata=meta)
 
 
-def required(*, help: Optional[str] = None
+def required(*, help: str = None
              ) -> dataclasses.Field:
     """ Add a missing value. This value must be specified later. ::
 
@@ -260,11 +248,11 @@ def required(*, help: Optional[str] = None
     return dataclasses.field(default=None, metadata=meta)
 
 
-def bounded(default: Optional[Number] = None,
-            _from: Optional[Number] = None,
-            _to: Optional[Number] = None,
+def bounded(default: Number = None,
+            _from: Number = None,
+            _to: Number = None,
             *,
-            help: Optional[str] = None
+            help: str = None
             ) -> dataclasses.Field:
     """ Bound an argument value in (_from, _to).
 
@@ -306,7 +294,7 @@ class ChikaConfig:
 
     @classmethod
     def from_dict(cls,
-                  state_dict: Dict[str, Any],
+                  state_dict: dict[str, Any],
                   allow_missing: bool = False
                   ) -> ChikaConfig:
         _state_dict = {}
@@ -349,7 +337,7 @@ class ChikaConfig:
 # config decorator
 def config(cls=None,
            is_root: bool = False
-           ) -> Type[ChikaConfig]:
+           ) -> type[ChikaConfig]:
     """ A wrapper to make ChikaConfig ::
 
     @config
@@ -397,7 +385,7 @@ def resolve_original_path(path: str or Path
 
 
 # entry point
-def main(cfg_cls: Type[ChikaConfig] | ChikaConfig,
+def main(cfg_cls: type[ChikaConfig] | ChikaConfig,
          strict: bool = False,
          change_job_dir: bool = False,
          job_dir_name: str = None
