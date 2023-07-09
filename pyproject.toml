@@ -28,15 +28,12 @@ Homepage = "https://github.com/moskomule/chika"
 [tool.hatch.version]
 path = "chika/__init__.py"
 
-[tool.hatch.version]
-path = "hypergrad/__about__.py"
-
 [tool.hatch.envs.tests]
 dependencies = [
     "pytest",
 ]
 
-[[tool.hatch.envs.test.matrix]]
+[[tool.hatch.envs.tests.matrix]]
 python = ["310", ]
 
 [tool.hatch.build.targets.sdist]
