@@ -40,10 +40,10 @@ class DataConfig:
     name: str = chika.required(help="name of dataset")
 
 
-class Optims(str, enum.Enum):
+class Optims(enum.StrEnum):
     # currently, only StrEnum is supported
-    sgd = "sgd"
-    adam = "adam"
+    sgd = enum.auto()
+    adam = enum.auto()
 
 
 @chika.config
@@ -61,6 +61,9 @@ class BaseConfig:
     seed: int = chika.with_help(1, help="random seed")
     use_amp: bool = False
     gpu: int = chika.choices(*range(torch.cuda.device_count()), help="id of gpu")
+
+    def __post_init__(self):
+        torch.cuda.set_device(self.gpu)
 ```
 
 Then, wrap the main function with `chika.main(BaseConfig)`.
